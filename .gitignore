@@ -1,0 +1,9 @@
+**/data
+**/drafts
+**/figures
+**/memos_and_feedback
+**/utils.py
+**/__pycache__
+**/archived
+**/.DS_STORE
+**/slides
