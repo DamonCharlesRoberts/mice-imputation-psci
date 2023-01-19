@@ -72,10 +72,14 @@ def ampute(data_frame, p_miss, p_obs, mecha):
     -----
     A list of pd.DataFrame objects
     """
-    original = data_frame # rename the data_frame obj
-    amputed = produce_na(original, p_miss=p_miss, p_obs=p_obs, mecha = mecha) # use produce_na to introduce missingness
-    data_frame = pd.DataFrame(amputed["X_incomp"].numpy(), columns = ['A', 'B', 'X', 'Z', 'Y']) # take missing data and put in pd.DataFrame
-    return data_frame #return the dataframe
+    # rename the data_frame obj
+    original = data_frame
+    # use produce_na to introduce missingness
+    amputed = produce_na(original, p_miss=p_miss, p_obs=p_obs, mecha = mecha)
+    # take missing data and put in pd.DataFrame
+    data_frame = pd.DataFrame(amputed["X_incomp"].numpy(), columns = ['A', 'B', 'X', 'Z', 'Y'])
+    # return the dataframe
+    return data_frame
 
 def impute(data_frame, datasets, save_all_iterations=True, random_state = 902010):
     """
