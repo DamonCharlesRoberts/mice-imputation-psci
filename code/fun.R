@@ -6,7 +6,9 @@
 
 # Imputation
 
-impute <- function(df = amputed, m = 10, package = NULL, meth = NULL) {
+impute <- function(
+    df = amputed, con = engine4, m = 10, package = NULL, meth = NULL
+    ) {
     #' Impute the amputed simulation datasets
     #' Using either amelia, miceRanger, or mice
 
@@ -28,10 +30,13 @@ impute <- function(df = amputed, m = 10, package = NULL, meth = NULL) {
     #'        dataframes of imputed data
     if (package == "Amelia") {
         x <- lapply(df, amelia, m = m) # nolint
+        df <- lapply(complete, x, "long")
     } else if (package == "miceRanger") {
         x <- lapply(df, miceRanger, m = m, verbose = FALSE) # nolint
+        df <- lapply(x, complete, "long")
     } else {
         x <- lapply(df, mice, m = m, meth = meth) # nolint
+        df <- lapply(x, complete, "long")
     }
-    return(x)
+    return(df)
 }

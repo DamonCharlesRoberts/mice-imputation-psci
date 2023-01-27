@@ -312,11 +312,12 @@ set.seed(90210)
 # Modularly load required functions
 box::use(
     #reticulate = reticulate[use_condaenv, source_python],
-    DBI = DBI[dbConnect, dbGetQuery],
+    DBI = DBI[dbConnect, dbGetQuery, dbWriteTable],
     duckdb = duckdb[duckdb], #needs to be version 0.6.1 for both R and python
     #fabricatr = fabricatr[fabricate, draw_binary, draw_ordered],
     mice = mice[ampute, pool, complete, mice],
     miceRanger = miceRanger[miceRanger],
+    data.table = data.table[data.table],
     Amelia = Amelia[amelia],
     tictoc = tictoc[...],
     dplyr = dplyr[select, filter, bind_rows],
@@ -334,6 +335,7 @@ datasets <- 1000 # size of number of samples
 engine <- dbConnect(duckdb(), dbdir = "../data/sim_original.db", read_only = FALSE)
 engine2 <- dbConnect(duckdb(), dbdir = "../data/sim_amputed.db", read_only = FALSE)
 engine3 <- dbConnect(duckdb(), dbdir = "../data/sim_imputed.db", read_only = FALSE)
+engine4 <- dbConnect(duckdb(), dbdir = "../data/benchmarks.db")
 ```
 
 ```{r}
@@ -341,12 +343,12 @@ engine3 <- dbConnect(duckdb(), dbdir = "../data/sim_imputed.db", read_only = FAL
 original <- list()
 amputed <- list()
 
-for (i in 0: 999){
+for (i in 0: 999) {
     original_table <- paste0('original_', as.character(i), sep="")
     original[[original_table]] <- dbGetQuery(engine, paste0('SELECT * FROM ', original_table, sep=""))
 }
 
-for (i in 0: 999){
+for (i in 0: 999) {
     amputed_table <- paste0('amputed_', as.character(i), sep="")
     df <- dbGetQuery(engine2, paste0('SELECT * FROM ', amputed_table, sep=""))
     amputed[[amputed_table]] <- df
@@ -355,34 +357,66 @@ for (i in 0: 999){
 
 ```{r}
 #| label: r-imputations
+
 # Interpolation
 tic.clearlog()
 tic("Interpolate")
 interpolate <- impute(package="mice", meth="mean")
-#interpolate <- lapply(amputed, mice, c(m = 10, meth = "mean"))
 toc(log = TRUE, quiet = TRUE)
+
 # AMELIA
 tic("Amelia")
-amelia <- impute(package="amelia")
-#amelia <- lapply(amputed, amelia, c(m = 10))
+amelia <- impute(package="amelia", con = engine4)
 toc(log = TRUE, quiet = TRUE)
+
 # LMICE
 tic("LMICE")
-lmice <- impute(package="mice", meth="norm")
+lmice <- impute(package="mice", meth="norm", con = engine4)
 #lmice <- lapply(amputed, mice, c(m = 10, meth = "norm"))
 toc(log = TRUE, quiet = TRUE)
+
 # RFMICE
 tic("RFMICE")
-rfmice <- impute(package="mice", meth="rf")
+rfmice <- impute(package="mice", meth="rf", con = engine4)
 #rfmice <- lapply(amputed, mice, c(m = 10, meth = "rf"))
 toc(log = TRUE, quiet = TRUE)
+
 #RFRanger
 tic("RFRanger")
-rfranger <- impute(package="miceRanger")
+rfranger <- impute(package="miceRanger", con = engine4)
 #rfranger <- lapply(amputed, miceRanger, c(m = 10, verbose = FALSE))
 toc(log = TRUE, quiet = TRUE)
+
 #Store timing info
-log <- list(tictoc::tic.log(format = TRUE))
+log <- tictoc::tic.log(format = TRUE) |>
+    stringr::str_split( ": ", simplify = TRUE) |>
+    data.frame()
+log$X2<-as.double(gsub("[secelapsed]","",as.character(log$X2)))
+setnames(log, c("procedure","seconds"))
+dbWriteTable(engine4, "benchmark", log)
+
+# Store imputed data in database
+#for (i in range(1:datasets)) {
+#    df <- interpolate[[i]]
+#    dbWriteTable(engine4, paste0("mean", as.character(i), sep="_"), df)
+#}
+#for (i in range(1:datasets)) {
+#    df <- amelia[[i]]
+#    dbWriteTable(engine4, paste0("amelia", as.character(i), sep="_"), df)
+#}
+#for (i in range(1:datasets)) {
+#    df <- lmice[[i]]
+#    dbWriteTable(engine4, paste0("lmice", as.character(i), sep="_"), df)
+#}
+#for (i in range(1:datasets)) {
+#    df <- rfmice[[i]]
+#    dbWriteTable(engine4, paste0("rfmice", as.character(i), sep="_"), df)
+#}
+#for (i in range(1:datasets)) {
+#    for (m in)
+#    df <- rfranger[[i]]
+#    dbWriteTable(engine4, paste0("rfranger", as.character(i), sep="_"), df)
+#}
 ```
 <!--
 ```{r}
