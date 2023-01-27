@@ -13,7 +13,6 @@ import pandas as pd
 import miceforest as mf
     #* User defined
 from produce_na import produce_na
-import utils
 
 def create_iter_table(data_frame, name_append, engine, i):
     """
@@ -30,9 +29,10 @@ def create_iter_table(data_frame, name_append, engine, i):
     Commits a list of pd.DataFrame objects to a duckdb file
     """
      # add the name and the dataframe number
+    data = data_frame
     name = str(name_append) + "_" + str(i)
     # add to table
-    engine.execute("CREATE OR REPLACE TABLE " + name + " AS SELECT * FROM data_frame")
+    engine.execute("CREATE OR REPLACE TABLE " + name + " AS SELECT * FROM data")
 
 def simulate(num_obs, num_vars = 5):
     """
@@ -89,7 +89,8 @@ def impute(data_frame, datasets, save_all_iterations=True, random_state = 902010
     -----
     data_frame(pd.DataFrame): A pandas DataFrame object with missingness to impute
     datasets(int): An integer for the number of datasets to generate
-    save_all_iterations(bool):A boolean for whether you should store each dataframe or write over original
+    save_all_iterations(bool):
+        - A boolean for whether you should store each dataframe or write over original
     random_state(int): An integer for the random state
 
     Returns

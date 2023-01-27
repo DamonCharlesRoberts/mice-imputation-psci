@@ -29,7 +29,7 @@ keywords:
   - Multiple imputation
   - Machine learning
 date: today
-bibliography: ../assets/rf_mice_bibliography.bib
+bibliography: ../assets/references.bib
 format:
   pdf:
     template: "../../templates/manuscripts/apsr_template.tex"
@@ -110,7 +110,7 @@ First, `MICE` performs a simple imputation, or interpolation, for every missing 
 
 The advantage of this chained equation procedure is to estimate each variable as an outcome with its own regression model that is most appropriate for it. The regression models that one may use in `MICE` are as numerous as those a researcher may choose from when engaged in statistical analysis. This means that the assumptions and the performance of the model one uses for the imputation are the same as in standard statistical analyses. Though it decreases some of the requirements for modeling the MAR process, it is not entirely atheoretical. We can, however, reduce the dependence that the imputed data have on a researcher's ability to theorize about the MAR process by selecting models that are accustomed to dealing with a large number of parameters without increasing inefficiency.
 
-One valuable model for allowing one to include a large number of parameters without losses to efficiency, is a form of ensemble machine learning model called Random Forests. As the following discussion highlights, random forest models are optimal for engaging in predictive tasks, which appears appropriate for the task of predicting missing values. These models have the additional benefit of not requiring a multivariate normal distribution, not requiring one to specify a potentially incorrect model of which variables are included in the MAR proccess, nor is it in the form of a Generalized Linear Model (GLM). That is, these models reduce some of the dependence of an imputation task on the researcher's beliefs about the source of the missingness. As researchers apply these random forest models within the `MICE` framework, they also benefit from the advantages that MI provide over the hot deck framework. These two features suggest that this procedure offers much more flexibility to the researcher. 
+One valuable model for allowing one to include a large number of parameters without losses to efficiency, is a form of ensemble machine learning model called Random Forests. As the following discussion highlights, random forest models are optimal for engaging in predictive tasks, which appears appropriate for the task of predicting missing values. These models have the additional benefit of not requiring a multivariate normal distribution, not requiring one to specify a potentially incorrect model of which variables are included in the MAR process, nor is it in the form of a Generalized Linear Model (GLM). That is, these models reduce some of the dependence of an imputation task on the researcher's beliefs about the source of the missingness. As researchers apply these random forest models within the `MICE` framework, they also benefit from the advantages that MI provide over the hot deck framework. These two features suggest that this procedure offers much more flexibility to the researcher. 
 
 <!-- 
     END OF LIT REVIEW
@@ -181,12 +181,12 @@ $$
 Y = 0.9X + 0.3Z + \epsilon ~ N(0, 1)
 $$
 
-The parameters for X and Z are 0.9 and 0.3, respectively. I also include some random noise in the data generating process. For the dataset, the outcome variable, Y, is generated with the respective DGP and a link function that draws values, according to the DGP and breaks them into a 5-point ordinal scale from 1 to 5. In the dataset, I include nine other variables that are not part of the DGP for Y. As Multiple Imputation is often dependent on the amount of information included in the dataset, including more variables than just the predictors will allow for a test of the different procedures' success at including relevant information from the dataset in performing the imputation. I generate values for X and Z by using the values of the nine random variables. X is a continous variable and its DGP is: 
+The parameters for X and Z are 0.9 and 0.3, respectively. I also include some random noise in the data generating process. For the dataset, the outcome variable, Y, is generated with the respective DGP and a link function that draws values, according to the DGP and breaks them into a 5-point ordinal scale from 1 to 5. In the dataset, I include nine other variables that are not part of the DGP for Y. As Multiple Imputation is often dependent on the amount of information included in the dataset, including more variables than just the predictors will allow for a test of the different procedures' success at including relevant information from the dataset in performing the imputation. I generate values for X and Z by using the values of the nine random variables. X is a continuos variable and its DGP is: 
 $$ 
 X = 0.5\text{Var2} + 0.3\text{Var6} + \epsilon ~ N(0, 1)
 $$
 
-Z is a binary variable where the probability, specifically 40%, of a value of 1 occuring is dependent on whether $Var5 = 1$, $Var7 = 0$, and $Var9 = 1$.
+Z is a binary variable where the probability, specifically 40%, of a value of 1 occurring is dependent on whether $Var5 = 1$, $Var7 = 0$, and $Var9 = 1$.
 
 ```{python}
 #| label: simulated-generation-block
@@ -234,7 +234,7 @@ save(simple_dgp_list, file="../data/original_datasets.RData")
 ```
 -->
 
-Once I have generated the dataset, I ampute it using the `mice` R package [@buuren_goothuis-oudshoorn_2011]. Following the estimate of the proportion of missing data in political science studies provided by @king_et-al_2001, I set the baseline proportion of values in the dataset to be imputed to 0.4. The amputation procedure is rather simple where the DGP for the missingness is determined through a linear regression. As the `RF-MICE` procedure performs best under complicated MAR pattterns -- particularly those more complicated than a linear regression, I expect that this simulation will yield results quite similar to that of `AMELIA II` and other parametric procedures. This would mean that, for this particular circumstance, that `RF-MICE` performs no worse than `AMELIA II`; but for all the reasons above, we should expect `RF-MICE` to perform well under settings with more complicated missing data patterns.
+Once I have generated the dataset, I ampute it using the `mice` R package [@buuren_goothuis-oudshoorn_2011]. Following the estimate of the proportion of missing data in political science studies provided by @king_et-al_2001, I set the baseline proportion of values in the dataset to be imputed to 0.4. The amputation procedure is rather simple where the DGP for the missingness is determined through a linear regression. As the `RF-MICE` procedure performs best under complicated MAR patterns -- particularly those more complicated than a linear regression, I expect that this simulation will yield results quite similar to that of `AMELIA II` and other parametric procedures. This would mean that, for this particular circumstance, that `RF-MICE` performs no worse than `AMELIA II`; but for all the reasons above, we should expect `RF-MICE` to perform well under settings with more complicated missing data patterns.
 
 ```{python}
 #| label: amputation-block
@@ -250,8 +250,11 @@ for i in range(datasets):
 engine2.close()
 ```
 
+<!--
+SEE HOW R DOES ON ITS OWN
 ```{python}
 #| label: python-impute
+#| eval: false
 start_time = default_timer()
 completed_df = list(map(lambda x: impute(data_frame=x, datasets=datasets), amputed))
 total_time = default_timer() - start_time
@@ -263,7 +266,7 @@ for i in range(datasets):
 # Close connection to database
 engine3.close()
 ```
-<!--
+
 ```{r}
 #| label: simulated-amputation-block
 #| eval: false
@@ -308,8 +311,9 @@ With these amputed datasets, I then apply some possible procedures one can use t
 set.seed(90210)
 # Modularly load required functions
 box::use(
-    reticulate = reticulate[use_condaenv, source_python],
-    DBI = DBI[...],
+    #reticulate = reticulate[use_condaenv, source_python],
+    DBI = DBI[dbConnect, dbGetQuery],
+    duckdb = duckdb[duckdb], #needs to be version 0.6.1 for both R and python
     #fabricatr = fabricatr[fabricate, draw_binary, draw_ordered],
     mice = mice[ampute, pool, complete, mice],
     miceRanger = miceRanger[miceRanger],
@@ -327,9 +331,9 @@ n <- 500 # size of each sample
 datasets <- 1000 # size of number of samples
 
 # Connect to databases
-engine <- dbConnect(duckdb::duckdb(), dbdir = "../data/sim_original.db", read_only = FALSE)
-engine2 <- dbConnect(duckdb::duckdb(), dbdir = "../data/sim_amputed.db", read_only = FALSE)
-engine3 <- dbConnect(duckdb::duckdb(), dbdir = "../data/sim_imputed.db", read_only = FALSE)
+engine <- dbConnect(duckdb(), dbdir = "../data/sim_original.db", read_only = FALSE)
+engine2 <- dbConnect(duckdb(), dbdir = "../data/sim_amputed.db", read_only = FALSE)
+engine3 <- dbConnect(duckdb(), dbdir = "../data/sim_imputed.db", read_only = FALSE)
 ```
 
 ```{r}
@@ -347,7 +351,6 @@ for (i in 0: 999){
     df <- dbGetQuery(engine2, paste0('SELECT * FROM ', amputed_table, sep=""))
     amputed[[amputed_table]] <- df
 }
-
 ```
 
 ```{r}
@@ -379,7 +382,7 @@ rfranger <- impute(package="miceRanger")
 #rfranger <- lapply(amputed, miceRanger, c(m = 10, verbose = FALSE))
 toc(log = TRUE, quiet = TRUE)
 #Store timing info
-log.txt <- unlist(tictoc::tic.log(format = TRUE))
+log <- list(tictoc::tic.log(format = TRUE))
 ```
 <!--
 ```{r}
@@ -592,7 +595,7 @@ The differences between the procedures across all three variables are similar. T
 
 ## Simple applied example
 
-In this section, I use the 2020 American National Election Study to provide a simple example of the steps one might take to handle missing data and how they might implement the `RF-MICE` procedure in practice. The example that I use here is to examine the predictors of vote choice among the American electorate. While this is a rich area of research, I use an admittedly oversimplified version of a model of vote choice. In the suplementary materials, readers may find code to replicate the steps I take to do this.
+In this section, I use the 2020 American National Election Study to provide a simple example of the steps one might take to handle missing data and how they might implement the `RF-MICE` procedure in practice. The example that I use here is to examine the predictors of vote choice among the American electorate. While this is a rich area of research, I use an admittedly oversimplified version of a model of vote choice. In the supplementary materials, readers may find code to replicate the steps I take to do this.
 ```{r}
 #| label: anes-cleaning
 #| eval: false
