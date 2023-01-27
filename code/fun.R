@@ -30,13 +30,13 @@ impute <- function(
     #'        dataframes of imputed data
     if (package == "Amelia") {
         x <- lapply(df, amelia, m = m) # nolint
-        df <- lapply(complete, x, "long")
+        df <- lapply(mice::complete, x, "long")
     } else if (package == "miceRanger") {
         x <- lapply(df, miceRanger, m = m, verbose = FALSE) # nolint
-        df <- lapply(x, complete, "long")
+        df <- lapply(x, mice::complete, "long")
     } else {
         x <- lapply(df, mice, m = m, meth = meth) # nolint
-        df <- lapply(x, complete, "long")
+        df <- lapply(x, mice::complete, "long")
     }
     return(df)
 }
