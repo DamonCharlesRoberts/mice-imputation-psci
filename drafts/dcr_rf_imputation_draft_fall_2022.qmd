@@ -311,10 +311,8 @@ With these amputed datasets, I then apply some possible procedures one can use t
 set.seed(90210)
 # Modularly load required functions
 box::use(
-    #reticulate = reticulate[use_condaenv, source_python],
     DBI = DBI[dbConnect, dbGetQuery, dbWriteTable],
     duckdb = duckdb[duckdb], #needs to be version 0.6.1 for both R and python
-    #fabricatr = fabricatr[fabricate, draw_binary, draw_ordered],
     mice = mice[ampute, pool, complete, mice],
     miceRanger = miceRanger[miceRanger],
     data.table = data.table[data.table],
@@ -393,30 +391,29 @@ log <- tictoc::tic.log(format = TRUE) |>
     data.frame()
 log$X2<-as.double(gsub("[secelapsed]","",as.character(log$X2)))
 setnames(log, c("procedure","seconds"))
-dbWriteTable(engine4, "benchmark", log)
+dbWriteTable(engine4, "benchmark", log, overwrite = TRUE)
 
 # Store imputed data in database
-#for (i in range(1:datasets)) {
-#    df <- interpolate[[i]]
-#    dbWriteTable(engine4, paste0("mean", as.character(i), sep="_"), df)
-#}
-#for (i in range(1:datasets)) {
-#    df <- amelia[[i]]
-#    dbWriteTable(engine4, paste0("amelia", as.character(i), sep="_"), df)
-#}
-#for (i in range(1:datasets)) {
-#    df <- lmice[[i]]
-#    dbWriteTable(engine4, paste0("lmice", as.character(i), sep="_"), df)
-#}
-#for (i in range(1:datasets)) {
-#    df <- rfmice[[i]]
-#    dbWriteTable(engine4, paste0("rfmice", as.character(i), sep="_"), df)
-#}
-#for (i in range(1:datasets)) {
-#    for (m in)
-#    df <- rfranger[[i]]
-#    dbWriteTable(engine4, paste0("rfranger", as.character(i), sep="_"), df)
-#}
+for (i in 1: datasets) {
+    df <- interpolate[[i]]
+    dbWriteTable(engine3, paste0("mean_", as.character(i)), df, overwrite = TRUE)
+}
+for (i in 1: datasets) {
+    df <- amelia[[i]]
+    dbWriteTable(engine3, paste0("amelia_", as.character(i)), df, overwrite = TRUE)
+}
+for (i in 1: datasets) {
+    df <- lmice[[i]]
+    dbWriteTable(engine3, paste0("lmice_", as.character(i)), df,overwrite = TRUE)
+}
+for (i in 1: datasets) {
+    df <- rfmice[[i]]
+    dbWriteTable(engine3, paste0("rfmice_", as.character(i)), df,overwrite = TRUE)
+}
+for (i in 1: datasets) {
+    df <- data.frame(rfranger[[i]])
+    dbWriteTable(engine3, paste0("rfranger_", as.character(i)), df,overwrite = TRUE)
+}
 ```
 <!--
 ```{r}

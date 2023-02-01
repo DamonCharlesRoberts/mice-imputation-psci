@@ -33,7 +33,7 @@ impute <- function(
         df <- lapply(mice::complete, x, "long")
     } else if (package == "miceRanger") {
         x <- lapply(df, miceRanger, m = m, verbose = FALSE) # nolint
-        df <- lapply(x, mice::complete, "long")
+        df <- lapply(x, miceRanger::completeData)
     } else {
         x <- lapply(df, mice, m = m, meth = meth) # nolint
         df <- lapply(x, mice::complete, "long")
