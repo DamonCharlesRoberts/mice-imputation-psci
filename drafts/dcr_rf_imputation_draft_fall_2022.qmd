@@ -322,7 +322,7 @@ box::use(
     tibble = tibble[tibble],
     ggplot2 = ggplot2[ggplot, geom_density, aes, theme_minimal, labs, geom_boxplot, ggsave],
 )
-
+require(data.table)# for miceRanger
 # Load user defined functions
 source("../code/fun.R")
 # Loop parameters
@@ -465,62 +465,6 @@ for (i in 1: datasets) {
 for (i in 1: datasets) {
     rfranger_table <- paste0('rfranger_', as.character(i), sep="")
     df <- dbGetQuery(engine3, paste0('SELECT * FROM ', rfranger_table, sep=""))
-    rfranger[[rfranger_table]] <- df %>%
-        tidyr::gather(
-            key = "dataset", 
-            value = "A",
-            Dataset_1.A,
-            Dataset_2.A,
-            Dataset_3.A,
-            Dataset_4.A,
-            Dataset_5.A,
-            Dataset_6.A,
-            Dataset_7.A,
-            Dataset_8.A,
-            Dataset_9.A,
-            Dataset_10.A) %>%
-        tidyr::gather(
-            key = "dataset",
-            value = "B",
-            Dataset_1.B,
-            Dataset_2.B,
-            Dataset_3.B,
-            Dataset_4.B,
-            Dataset_5.B,
-            Dataset_6.B,
-            Dataset_7.B,
-            Dataset_8.B,
-            Dataset_9.B,
-            Dataset_10.B
-        ) %>%
-        tidyr::gather(
-            key = "dataset",
-            value = "X",
-            Dataset_1.X,
-            Dataset_2.X,
-            Dataset_3.X,
-            Dataset_4.X,
-            Dataset_5.X,
-            Dataset_6.X,
-            Dataset_7.X,
-            Dataset_8.X,
-            Dataset_9.X,
-            Dataset_10.X
-        ) %>%
-        tidyr::gather(
-            key = "dataset",
-            value = "Y",
-            Dataset_1.Y,
-            Dataset_2.Y,
-            Dataset_3.Y,
-            Dataset_4.Y,
-            Dataset_5.Y,
-            Dataset_6.Y,
-            Dataset_7.Y,
-            Dataset_8.Y,
-            Dataset_9.Y,
-            Dataset_10.Y
-        )
 }
 ```
 <!--

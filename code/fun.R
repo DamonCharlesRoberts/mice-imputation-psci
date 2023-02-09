@@ -8,16 +8,16 @@
 
 complete_data <- function(data_frame = NULL) {
     #' Clean the miceRanger output
-    #' 
+    #'
     #' Parameters
     #' ----
     #' data_frame(list(data.frame)): list of data.frames that have been imputed
-    #' 
+    #'
     #' Returns
     #' ----
     #' list of data.frame
-    x <- lapply(data_frame, miceRanger::completeData)
-    df <- dplyr::bind_rows(x, .id = "column_label")
+    mr_list <- lapply(data_frame, miceRanger::completeData)
+    mr_df_list <- lapply(mr_list, dplyr::bind_rows, .id = "dataset") # nolint
 }
 # Imputation
 
@@ -51,7 +51,7 @@ impute <- function(
         df <- lapply(mice::complete, x, "long")
     } else if (package == "miceRanger") {
         x <- lapply(df, miceRanger, m = m, verbose = FALSE) # nolint
-        df <- lapply(x, complete_data)
+        df <- complete_data(x)
     } else {
         x <- lapply(df, mice, m = m, meth = meth) # nolint
         df <- lapply(x, mice::complete, "long")
@@ -65,7 +65,7 @@ discrepancy <- function(imputed = NULL, original = NULL) {
     #'
     #' Description:
     #' ----
-    #'  Function that calculates the mean discrepancy between the imputed and original dataset
+    #'  Function that calculates the mean discrepancy between the imputed and original dataset # nolint
     #'
     #' Parameters:
     #' ----
@@ -79,21 +79,21 @@ discrepancy <- function(imputed = NULL, original = NULL) {
     #' data.frame of average discrepancies for each dataset
 
     # Create empty objects
-    combined_X = NULL
-    combined_Y = NULL
-    combined_Z = NULL
+    combined_x <- NULL
+    combined_y <- NULL
+    combined_z <- NULL
     # Calculate mean discrepancy and add this to data.frame
-    for (d in 1: datasets) {
-        X <- mean(imputed[[d]]$X - original[[d]]$X)
-        Y <- mean(imputed[[d]]$Y - original[[d]]$Y)
-        Z <- mean(imputed[[d]]$Z - original[[d]]$Z)
-        combined_X <- bind_rows(data.frame(combined_X), data.frame(X))
-        combined_Y <- bind_rows(data.frame(combined_Y), data.frame(Y))
-        combined_Z <- bind_rows(data.frame(combined_Z), data.frame(Z))
+    for (d in 1: datasets) { # nolint # nolint
+        mean_x <- mean(imputed[[d]]$X - original[[d]]$X)
+        mean_y <- mean(imputed[[d]]$Y - original[[d]]$Y)
+        mean_z <- mean(imputed[[d]]$Z - original[[d]]$Z)
+        combined_x <- bind_rows(data.frame(combined_x), data.frame(mean_x)) # nolint
+        combined_y <- bind_rows(data.frame(combined_y), data.frame(mean_y)) # nolint
+        combined_z <- bind_rows(data.frame(combined_z), data.frame(mean_z)) # nolint
         mean_diff_df <- cbind(
-            "X" = combined_X,
-            "Y" = combined_Y,
-            "Z" = combined_Z
+            "X" = combined_x,
+            "Y" = combined_y,
+            "Z" = combined_z
         )
     }
     return(mean_diff_df)
