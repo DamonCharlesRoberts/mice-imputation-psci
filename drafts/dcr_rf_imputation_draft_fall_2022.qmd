@@ -353,9 +353,16 @@ for (i in 0: 999) {
 }
 ```
 
+<!--
+    Notes:
+        - The following block has the option `eval:false` set.
+        - Remove this option if wanting to reproduce the whole thing.
+        - Otherwise, can just access them from the database like I do in the following block
+-->
+
 ```{r}
 #| label: r-imputations
-
+#| eval: false
 # Interpolation
 tic.clearlog()
 tic("Interpolate")
@@ -413,6 +420,107 @@ for (i in 1: datasets) {
 for (i in 1: datasets) {
     df <- data.frame(rfranger[[i]])
     dbWriteTable(engine3, paste0("rfranger_", as.character(i)), df,overwrite = TRUE)
+}
+```
+
+<!--
+    Notes:
+        - Change `eval:true` to `eval:false` in the following block if fully reproducing the manuscript
+        - leave to `eval:true` if not re-running simulations
+-->
+```{r}
+#| label: simulated-imputation-load
+# Create empty list elements
+interpolate <- list()
+amelia <- list()
+lmice <- list()
+rfmice <- list()
+rfranger <- list()
+
+# Grab the stored imputed data and put each dataframe in list
+for (i in 1: datasets) {
+    mean_table <- paste0('mean_', as.character(i), sep="")
+    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', mean_table, sep=""))
+    interpolate[[mean_table]] <- df
+}
+
+for (i in 1: datasets) {
+    amelia_table <- paste0('amelia_', as.character(i), sep="")
+    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', amelia_table, sep=""))
+    amelia[[amelia_table]] <- df
+}
+
+for (i in 1: datasets) {
+    lmice_table <- paste0('lmice_', as.character(i), sep="")
+    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', lmice_table, sep=""))
+    lmice[[lmice_table]] <- df
+}
+
+for (i in 1: datasets) {
+    rfmice_table <- paste0('rfmice_', as.character(i), sep="")
+    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', rfmice_table, sep=""))
+    rfmice[[rfmice_table]] <- df
+}
+
+for (i in 1: datasets) {
+    rfranger_table <- paste0('rfranger_', as.character(i), sep="")
+    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', rfranger_table, sep=""))
+    rfranger[[rfranger_table]] <- df %>%
+        tidyr::gather(
+            key = "dataset", 
+            value = "A",
+            Dataset_1.A,
+            Dataset_2.A,
+            Dataset_3.A,
+            Dataset_4.A,
+            Dataset_5.A,
+            Dataset_6.A,
+            Dataset_7.A,
+            Dataset_8.A,
+            Dataset_9.A,
+            Dataset_10.A) %>%
+        tidyr::gather(
+            key = "dataset",
+            value = "B",
+            Dataset_1.B,
+            Dataset_2.B,
+            Dataset_3.B,
+            Dataset_4.B,
+            Dataset_5.B,
+            Dataset_6.B,
+            Dataset_7.B,
+            Dataset_8.B,
+            Dataset_9.B,
+            Dataset_10.B
+        ) %>%
+        tidyr::gather(
+            key = "dataset",
+            value = "X",
+            Dataset_1.X,
+            Dataset_2.X,
+            Dataset_3.X,
+            Dataset_4.X,
+            Dataset_5.X,
+            Dataset_6.X,
+            Dataset_7.X,
+            Dataset_8.X,
+            Dataset_9.X,
+            Dataset_10.X
+        ) %>%
+        tidyr::gather(
+            key = "dataset",
+            value = "Y",
+            Dataset_1.Y,
+            Dataset_2.Y,
+            Dataset_3.Y,
+            Dataset_4.Y,
+            Dataset_5.Y,
+            Dataset_6.Y,
+            Dataset_7.Y,
+            Dataset_8.Y,
+            Dataset_9.Y,
+            Dataset_10.Y
+        )
 }
 ```
 <!--
@@ -509,76 +617,22 @@ Figure \ref{fig:distributions} depicts the distributions of the complete dataset
 -->
 
 Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s = 1000$. I have a total of $s \times m$ datasets. For each s dataset, I took the difference of each m dataset from the complete dataset and took the average of these differences to give me a mean score of the discrepancy for each s dataset. @fig-y-simulated, @fig-x-simulated, @fig-z-simulated represents these mean discrepancy scores for the three variables that were originally imputed.
-<!--
+
 ```{r}
 #| label: calculating average discrepancies
-#| eval: false
+
 # boxplots of difference between values
     #* Take the mean difference within imputed datasets
         #** Mean
-combined_X = NULL
-combined_Y = NULL
-combined_Z = NULL
-for(d in 1:data_sets){
-    for(m in 1:10){
-    complete_mean = complete(simple_mean_list_0.4[[d]], action = m)
-    X = mean(complete_mean$X - simple_dgp_list[[d]]$X)
-    Y = mean(complete_mean$Y - simple_dgp_list[[d]]$Y)
-    Z = mean(complete_mean$Z - simple_dgp_list[[d]]$Z)
-    combined_X = bind_rows(data.frame(combined_X), data.frame(X))
-    combined_Y = bind_rows(data.frame(combined_Y), data.frame(Y))
-    combined_Z = bind_rows(data.frame(combined_Z), data.frame(Z))
-    mean_mean_diff = cbind('X' = combined_X, 'Y' = combined_Y, 'Z' = combined_Z)
-    }
-}
-        #** AMELIA
-combined_X = NULL
-combined_Y = NULL
-combined_Z = NULL
-for(d in 1:data_sets){
-    for(m in 1:10){
-        complete_amelia = simple_amelia_list_0.4[[d]][['imputations']][[m]]
-        X = mean(complete_amelia$X - simple_dgp_list[[d]]$X)
-        Y = mean(complete_amelia$Y - simple_dgp_list[[d]]$Y)
-        Z = mean(complete_amelia$Z - simple_dgp_list[[d]]$Z)
-        combined_X = bind_rows(data.frame(combined_X), data.frame(X))
-        combined_Y = bind_rows(data.frame(combined_Y), data.frame(Y))
-        combined_Z = bind_rows(data.frame(combined_Z), data.frame(Z))
-        mean_amelia_diff = cbind('X' = combined_X, 'Y' = combined_Y, 'Z' = combined_Z)
-    }
-}
-        #** Linear
-combined_X = NULL
-combined_Y = NULL
-combined_Z = NULL
-for(d in 1:data_sets){
-    for(m in 1:10){
-        complete_linear = complete(simple_linear_list_0.4[[d]], action = m)
-        X = mean(complete_linear$X - simple_dgp_list[[d]]$X)
-        Y = mean(complete_linear$Y - simple_dgp_list[[d]]$Y)
-        Z = mean(complete_linear$Z - simple_dgp_list[[d]]$Z)
-        combined_X = bind_rows(data.frame(combined_X), data.frame(X))
-        combined_Y = bind_rows(data.frame(combined_Y), data.frame(Y))
-        combined_Z = bind_rows(data.frame(combined_Z), data.frame(Z))
-        mean_linear_diff = cbind('X' = combined_X, 'Y' = combined_Y, 'Z' = combined_Z)
-    }
-}
-        #** RF-MICE
-combined_X = NULL
-combined_Y = NULL
-combined_Z = NULL
-for(d in 1:data_sets){
-    for(m in 1:10){
-        complete_rf = complete(simple_rf_list_0.4[[d]], action = m)
-        X = mean(complete_rf$X - simple_dgp_list[[d]]$X)
-        Y = mean(complete_rf$Y - simple_dgp_list[[d]]$Y)
-        Z = mean(complete_rf$Z - simple_dgp_list[[d]]$Z)
-        combined_X = bind_rows(data.frame(combined_X), data.frame(X))
-        combined_Y = bind_rows(data.frame(combined_Y), data.frame(Y))
-        combined_Z = bind_rows(data.frame(combined_Z), data.frame(Z))
-        mean_rf_diff = cbind('X' = combined_X, 'Y' = combined_Y, 'Z' = combined_Z)
-    }
-}
+interpolate_diff = discrepancy(imputed = interpolate, original = original)
+        #** Amelia
+amelia_diff = discrepancy(imputed = amelia, original = original)
+        #** LMice
+lmice_diff = discrepancy(imputed = lmice, original = original)
+        #** RFMice
+rfmice_diff = discrepancy(imputed = rfmice, original = original)
+        #** RFRanger
+rfranger_diff = discrepancy(imputed = rfranger, original = original)
 ```
 
 ```{r}
