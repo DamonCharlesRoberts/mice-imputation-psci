@@ -9,6 +9,7 @@ Notes:
 # Load dependencies
     #* from env
 import numpy as np
+import polars as pl
 import pandas as pd
 import miceforest as mf
     #* User defined
@@ -16,20 +17,25 @@ from produce_na import produce_na
 
 def create_iter_table(data_frame, name_append, engine, i):
     """
-    Store list of pd.DataFrame objects in duckdb database
+    Store list of pl.DataFrame objects in duckdb database
 
     Parameters
     -----
-    list_obj(list): a list object containing pd.DataFrame elements
-    name_append(str):a string to append the table name
-    engine(str):an engine connected to a duckdb database
+    list_obj: list 
+        - a list object containing pl.DataFrame elements
+
+    name_append: str
+        - a string to append the table name
+    
+    engine: str
+        - an engine connected to a duckdb database
 
     Returns
     -----
-    Commits a list of pd.DataFrame objects to a duckdb file
+    Commits a list of pl.DataFrame objects to a duckdb file
     """
      # add the name and the dataframe number
-    data = data_frame
+    data = data_frame.to_arrow()
     name = str(name_append) + "_" + str(i)
     # add to table
     engine.execute("CREATE OR REPLACE TABLE " + name + " AS SELECT * FROM data")
@@ -40,12 +46,15 @@ def simulate(num_obs, num_vars = 5):
 
     Parameters
     -----
-    num_obs(int): number of observations
-    num_vars(int): number of features
+    num_obs: int 
+        - number of observations
+
+    num_vars: int
+        - number of features
 
     Returns
     -----
-    A list of pd.DataFrame objects
+    A list of pl.DataFrame objects
     """
     # calculate a mean for num_vars
     mean = np.random.random(num_vars)
@@ -54,7 +63,7 @@ def simulate(num_obs, num_vars = 5):
     # with mean and cov, create a multivariate normal dist
     dist = np.random.multivariate_normal(mean, cov, num_obs)
     # add these data to a pd.DataFrame
-    data_frame = pd.DataFrame(dist, columns=['A', 'B', 'X', 'Z', 'Y'])
+    data_frame = pl.DataFrame(dist, columns=['A', 'B', 'X', 'Z', 'Y'])
     # return the data_frame
     return data_frame
 
@@ -64,20 +73,25 @@ def ampute(data_frame, p_miss, p_obs, mecha):
 
     Parameters
     -----
-    data_frame(pd.DataFrame): dataframe input to ampute
-    p_miss(float):the percent of missingness to introduce
-    p_obs(float):the percent of variables without missingness
+    data_frame: pl.DataFrame
+        - dataframe input to ampute
+   
+    p_miss: float
+        - the percent of missingness to introduce
+
+    p_obs: float
+        - the percent of variables without missingness
 
     Returns
     -----
-    A list of pd.DataFrame objects
+    A list of pl.DataFrame objects
     """
     # rename the data_frame obj
-    original = data_frame
+    original = data_frame.to_pandas()
     # use produce_na to introduce missingness
     amputed = produce_na(original, p_miss=p_miss, p_obs=p_obs, mecha = mecha)
     # take missing data and put in pd.DataFrame
-    data_frame = pd.DataFrame(amputed["X_incomp"].numpy(), columns = ['A', 'B', 'X', 'Z', 'Y'])
+    data_frame = pl.DataFrame(amputed["X_incomp"].numpy(), columns = ['A', 'B', 'X', 'Z', 'Y'])
     # return the dataframe
     return data_frame
 
@@ -87,15 +101,22 @@ def impute(data_frame, datasets, save_all_iterations=True, random_state = 902010
 
     Parameters
     -----
-    data_frame(pd.DataFrame): A pandas DataFrame object with missingness to impute
-    datasets(int): An integer for the number of datasets to generate
-    save_all_iterations(bool):
+    data_frame: pl.DataFrame
+        - A pandas DataFrame object with missingness to impute
+
+    datasets: int
+        - An integer for the number of datasets to generate
+
+    save_all_iterations: bool
         - A boolean for whether you should store each dataframe or write over original
-    random_state(int): An integer for the random state
+
+    random_state: int
+        - An integer for the random state
 
     Returns
     -----
-    imputed: A list of imputed pd.DataFrame objects
+    imputed: A list of imputed pl.DataFrame objects
+    
     total_time: A int of total time it took to execute
     """
     # rename data_frame
