@@ -29,12 +29,13 @@ keywords:
   - Multiple imputation
   - Machine learning
 date: today
-bibliography: ../assets/references.bib
+#bibliography: "../assets/references.bib"
 format:
   pdf:
-    template: "../../templates/manuscripts/apsr_template.tex"
+    template: "../../../templates/manuscripts/apsr_template.tex"
     cite-method: biblatex
-    latex-output-dir: "../drafts/"
+    #latex-output-dir: "../drafts"
+    keep-tex: true
 execute:
     echo: false
     message: false
@@ -95,17 +96,9 @@ MI seeks to solve this issue by using the entire dataset for imputing missing va
 
 There is a variant to MI that seeks more computational efficiency and loosens some of the distributional assumptions required. This variant is called Multiple Imputation through Chained Equations (`MICE`). `MICE` performs quite well for large imputation tasks. MI struggles to impute values when there is missingness in the other variables of the dataset [@kropko_et-al_2014] - which is quite common. Though not reliant on a multivariate normal distribution, Conditional MI still relies on generalized linear models (GLM) in calculating the values. `MICE` tries to get around this problem in a few steps, as described by @azur_et-al_2011. @fig-process provides a visual representation of the procedure for a form of `MICE` used in this manuscript. I include more details about random forest models in the following subsection.
 
-```{mermaid}
-%%| label: Steps of RF-MICE procedure
-%%| fig-cap: Snap-judgement model
-%%| fig-width: 8
-%%{init: {'theme':'base', 'themeVariables':{'primaryColor':'#ffffff', 'primaryBorderColor':'#000000'}}}%%
-graph TD;
-A[Missing Data] --> B[Simple Imputation]
-B --> C[Select Variable and remove imputed values]
-C --> D[Random forest model to impute predicted values]
-D --> |Repeat for each variable| C
-```
+<!--
+    NOTE: CODE FOR DIAGRAM SHOULD BE HERE
+-->
 
 First, `MICE` performs a simple imputation, or interpolation, for every missing value in the entire dataset. These are the placeholder values. The second step in the general `MICE` paradigm involves identifying one variable to impute. Once complete, it then removes those placeholder values. The third step then involves regressing the observed values of the variable on the other variables in the model and replacing the predicted values generated from the regression model for the missing values. The fourth step is to repeat steps two and three for each variable in the data set with missing values - this constitutes a single iteration. As a fifth step, you perform between five and ten iterations^[Though, the exact number of recommended iterations used in `MICE` are still up for debate [see @buuren_goothuis-oudshoorn_2011, @azur_et-al_2011]. The recommendation is that you elect to go with more iterations if not constrained by computational limitations.]. 
 
@@ -329,7 +322,7 @@ n <- 500 # size of each sample
 datasets <- 1000 # size of number of samples
 
 # Connect to databases
-#engine <- dbConnect(duckdb(), dbdir = "../data/sim_original.db", read_only = FALSE)
+engine <- dbConnect(duckdb(), dbdir = "../data/sim_original.db", read_only = FALSE)
 engine2 <- dbConnect(duckdb(), dbdir = "../data/sim_amputed.db", read_only = FALSE)
 engine3 <- dbConnect(duckdb(), dbdir = "../data/sim_imputed.db", read_only = FALSE)
 engine4 <- dbConnect(duckdb(), dbdir = "../data/benchmarks.db")
@@ -354,14 +347,14 @@ for (i in 0: 999) {
 
 <!--
     Notes:
-        - The following block has the option `eval:false` set.
+        - The following block (r-imputations) has the option `eval:false` set.
         - Remove this option if wanting to reproduce the whole thing.
-        - Otherwise, can just access them from the database like I do in the following block
+        - Otherwise, can just access them from the database like I do in the block following (simulated-imputation-load) the r-imputations block
 -->
 
 ```{r}
 #| label: r-imputations
-#| eval: false
+#| eval: true
 # Interpolation
 tic.clearlog()
 tic("Interpolate")
@@ -424,8 +417,8 @@ for (i in 1: datasets) {
 
 <!--
     Notes:
-        - Change `eval:true` to `eval:false` in the following block if fully reproducing the manuscript
-        - leave to `eval:true` if not re-running simulations
+        - Change `eval:true` to `eval:false` in the following block (simulate4d-imputation-load) if fully reproducing the manuscript
+        - leave simulated-imputation-load block to `eval:true` if not re-running simulations
 -->
 ```{r}
 #| label: simulated-imputation-load
@@ -581,7 +574,7 @@ rfranger_diff = discrepancy(imputed = rfranger, original = original)
 
 ```{r}
 #| label: fig-y-simulated
-#| eval: false
+#| eval: true
 #| fig-cap: Average discrepancy scores for Y
 ggplot() +
     geom_boxplot(aes(x = 'Mean', y = mean_y), data = interpolate_diff) +
@@ -595,7 +588,7 @@ ggplot() +
 
 ```{r}
 #| label: fig-x-simulated
-#| eval: false
+#| eval: true
 #| fig-cap: Average discrepancy scores for X
 ggplot() +
     geom_boxplot(aes(x = 'Mean', y = mean_x), data = interpolate_diff) +
@@ -609,7 +602,7 @@ ggplot() +
 
 ```{r}
 #| label: fig-z-simulated
-#| eval: false
+#| eval: true
 #| fig-cap: Average discrepancy scores for Z
 ggplot() +
     geom_boxplot(aes(x = 'Mean', y = mean_z), data = interpolate_diff) +
@@ -621,12 +614,13 @@ ggplot() +
     labs(x = 'Z', y = 'Average difference from complete data')
 ```
 
-Overall, we see that the procedures yield small differences between the actual and estimated values. For Y, `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(mean_amelia_diff$Y)) ```, the Linear `MICE` procedure has a mean discrepancy of ```r sprintf('%.3f', mean(mean_linear_diff$Y)) ```, the interpolation procedure has a mean discrepancy of ```r sprintf('%.3f', mean(mean_mean_diff$Y)) ```, and `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(mean_rf_diff$Y)) ```. For X, we see that the `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(mean_rf_diff$X)) ```, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(mean_mean_diff$X)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(mean_linear_diff$X)) ```, and AMELIA has a mean discrepancy of ```r sprintf('%.3f', mean(mean_amelia_diff$X)) ```. For Z, we also see that `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(mean_rf_diff$Z)) ```, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(mean_mean_diff$Z)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(mean_linear_diff$Z)) ``` and `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(mean_amelia_diff$Z)) ```. 
+Overall, we see that the procedures yield small differences between the actual and estimated values. For Y, `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_y)) ```, the Linear `MICE` procedure has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_y)) ```, the interpolation procedure has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_y)) ```, and `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_y)) ```. For X, we see that the `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_x)) ```, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_x)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_x)) ```, and AMELIA has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_x)) ```. For Z, we also see that `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_z)) ```, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_z)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_z)) ``` and `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_z)) ```. 
 
 The differences between the procedures across all three variables are similar. This may be due to the fact that the simulation and the amputation is relatively simple to what we may encounter in the real world where we expect the MAR process to be much more complicated. This demonstrates, however, that the performance of these procedures are relatively heterogenous and that, for robustness' sake, we should perform our imputation using more than one tool. Speaking directly to the `RF-MICE` procedure, we see that it performs well for a dichotomous (one-hot encoded) outcome but performs less well than `AMELIA II` in circumstances where the outcome is continuous or ordinal. In a separate simulation study, @marbach_2021_pa also demonstrates similar differences in performance between `AMELIA II` and `RF-MICE` where the MAR procedure does not include an interaction term.^[When the MAR process includes an interaction term, `RF-MICE` tends to underperform relative to `AMELIA II`.]
 
 ## Simple applied example
 
+<!--
 In this section, I use the 2020 American National Election Study to provide a simple example of the steps one might take to handle missing data and how they might implement the `RF-MICE` procedure in practice. The example that I use here is to examine the predictors of vote choice among the American electorate. While this is a rich area of research, I use an admittedly oversimplified version of a model of vote choice. In the supplementary materials, readers may find code to replicate the steps I take to do this.
 ```{r}
 #| label: anes-cleaning
@@ -669,7 +663,7 @@ anes_2020[['clean']] = anes_2020[['original']] |>
     #select(White, Female, PID, Vote, Age, Employment, Education)
 ```
 
-ANES conducts the survey in two waves; the first wave occurred in the months leading up to the 2020 Presidential Election, and the post wave happened in the months after. As there are two waves, there is ample opportunity for multicollinearity to occur and to cause both imputation procedures some problems. As a result, I removed the pre-election survey items and a portion of the post-election survey items (primarily those that are administrative or are variables later used to create summary responses). This cleaning of the dataset leaves ```r ncol(anes_2020[['clean']]) ``` variables.
+ANES conducts the survey in two waves; the first wave occurred in the months leading up to the 2020 Presidential Election, and the post wave happened in the months after. As there are two waves, there is ample opportunity for multicollinearity to occur and to cause both imputation procedures some problems. As a result, I removed the pre-election survey items and a portion of the post-election survey items (primarily those that are administrative or are variables later used to create summary responses). This cleaning of the dataset leaves ```{r} ncol(anes_2020[['clean']]) ``` variables.
 
 Before imputation I also recoded the variables that will be used in the statistical model. Vote is coded as 1 if the respondent reported voting for Joe Biden, and 0 if they did not. The variable White is coded as 1 if the respondent self-reported that they are White and 0 otherwise. The variable Female is coded as 1 if the respondent self-reported that they are Female and 0 otherwise. Finally, the variable Party ID is a 3-item measure where respondents that reported that they are Democrats are coded as a 1, those that reported that they are independent are coded as 2 and those that reported that they are Republicans are coded as 3. I also will use the default coding that the ANES provides for the respondent's age, employment status, and their education.
 
