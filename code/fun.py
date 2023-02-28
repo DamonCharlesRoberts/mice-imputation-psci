@@ -6,15 +6,13 @@ Notes:
     - Updated: 2023-01-18
         - by: dcr
 """
-# Load dependencies
-    #* from env
+# Import dependencies
 import numpy as np
 import polars as pl
-import pandas as pd
 import miceforest as mf
-    #* User defined
-from produce_na import produce_na
+from itertools import repeat
 
+# Define functions
 def create_iter_table(data_frame, name_append, engine, i):
     """
     Store list of pl.DataFrame objects in duckdb database
@@ -40,7 +38,7 @@ def create_iter_table(data_frame, name_append, engine, i):
     # add to table
     engine.execute("CREATE OR REPLACE TABLE " + name + " AS SELECT * FROM data")
 
-def simulate(num_obs, num_vars = 5):
+def simulate(num_obs, samples = 1000):
     """
     Simulation data
 
@@ -56,18 +54,27 @@ def simulate(num_obs, num_vars = 5):
     -----
     A list of pl.DataFrame objects
     """
-    # calculate a mean for num_vars
-    mean = np.random.random(num_vars)
-    # calculate the cov matrix for num_vars
-    cov = np.random.random((num_vars, num_vars))
-    # with mean and cov, create a multivariate normal dist
-    dist = np.random.multivariate_normal(mean, cov, num_obs)
+    # N
+    N = 1000000
+    # calculate data
+    a = np.random.gamma(2, 2, N)
+    b = np.random.binomial(1, 0.6, N)
+    x = 0.2 * a + 0.5 * b + np.random.normal(0, 1, N)
+    z = 0.9 * a * b + np.random.normal(0, 1, N)
+    y = 0.6 * x + 0.9 * z + np.random.normal(0, 1, N)
     # add these data to a pd.DataFrame
-    data_frame = pl.DataFrame(dist, columns=['A', 'B', 'X', 'Z', 'Y'])
+    pop_data_frame = pl.DataFrame({
+        'A':a,
+        'B':b,
+        'X':x,
+        'Z':z,
+        'Y':y
+                               })
+    data_frame = list(repeat(pop_data_frame.sample(n = num_obs), samples))
     # return the data_frame
-    return data_frame
+    return pop_data_frame, data_frame
 
-def ampute(data_frame, p_miss, p_obs, mecha):
+def ampute(data_frame, perc, random_state):
     """
     Ampute the data
 
@@ -76,11 +83,11 @@ def ampute(data_frame, p_miss, p_obs, mecha):
     data_frame: pl.DataFrame
         - dataframe input to ampute
    
-    p_miss: float
+    perc: float
         - the percent of missingness to introduce
 
-    p_obs: float
-        - the percent of variables without missingness
+    random_state: int
+        - the seed
 
     Returns
     -----
@@ -89,11 +96,39 @@ def ampute(data_frame, p_miss, p_obs, mecha):
     # rename the data_frame obj
     original = data_frame.to_pandas()
     # use produce_na to introduce missingness
-    amputed = produce_na(original, p_miss=p_miss, p_obs=p_obs, mecha = mecha)
+    amputed = mf.utils.ampute_data(original, perc = perc, random_state = random_state)
     # take missing data and put in pd.DataFrame
-    data_frame = pl.DataFrame(amputed["X_incomp"].numpy(), columns = ['A', 'B', 'X', 'Z', 'Y'])
+    data_frame = pl.DataFrame(amputed, columns = ['A', 'B', 'X', 'Z', 'Y'])
     # return the dataframe
     return data_frame
+
+def transformation(data_frames, datasets):
+    """
+    Transform the data from list of pl.DataFrames to pl.DataFrame for graphing
+
+    Parameters
+    ----
+    data_frames: list
+        - A list of pl.DataFrame objects
+    datasets: int
+        - An integer of number of samples produced
+    
+    Returns
+    ----
+    x_list, z_list, y_list: pl.DataFrame
+        - Three pl.DataFrames that combine the x, y, and z variables across samples produced
+    """
+    x_list = pl.DataFrame()
+    z_list = pl.DataFrame()
+    y_list = pl.DataFrame()
+    for i in range(datasets):
+        col_x = data_frames[i].select("X").rename({"X": "Dataset " + str(i)})
+        x_list = x_list.hstack(col_x)
+        col_z = data_frames[i].select("Z").rename({"Z": "Dataset " + str(i)})
+        z_list = z_list.hstack(col_z)
+        col_y = data_frames[i].select("Y").rename({"Y": "Dataset " + str(i)})
+        y_list = y_list.hstack(col_y)
+    return x_list, z_list, y_list
 
 def impute(data_frame, datasets, save_all_iterations=True, random_state = 902010):
     """

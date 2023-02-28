@@ -53,7 +53,7 @@ impute <- function(
         x <- lapply(df, miceRanger, m = m, verbose = FALSE) # nolint
         df <- complete_data(x)
     } else {
-        x <- lapply(df, mice, m = m, meth = meth) # nolint
+        x <- lapply(df, mice, m = m, meth = meth, printFlag = FALSE) # nolint
         df <- lapply(x, mice::complete, "long")
     }
     return(df)

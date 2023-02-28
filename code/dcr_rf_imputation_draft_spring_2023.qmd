@@ -40,6 +40,9 @@ execute:
     echo: false
     message: false
     warning: false
+engine: knitr
+params:
+    windows: true
 ---
 {{< pagebreak >}}
 <!-- 
@@ -96,9 +99,6 @@ MI seeks to solve this issue by using the entire dataset for imputing missing va
 
 There is a variant to MI that seeks more computational efficiency and loosens some of the distributional assumptions required. This variant is called Multiple Imputation through Chained Equations (`MICE`). `MICE` performs quite well for large imputation tasks. MI struggles to impute values when there is missingness in the other variables of the dataset [@kropko_et-al_2014] - which is quite common. Though not reliant on a multivariate normal distribution, Conditional MI still relies on generalized linear models (GLM) in calculating the values. `MICE` tries to get around this problem in a few steps, as described by @azur_et-al_2011. @fig-process provides a visual representation of the procedure for a form of `MICE` used in this manuscript. I include more details about random forest models in the following subsection.
 
-<!--
-    NOTE: CODE FOR DIAGRAM SHOULD BE HERE
--->
 
 First, `MICE` performs a simple imputation, or interpolation, for every missing value in the entire dataset. These are the placeholder values. The second step in the general `MICE` paradigm involves identifying one variable to impute. Once complete, it then removes those placeholder values. The third step then involves regressing the observed values of the variable on the other variables in the model and replacing the predicted values generated from the regression model for the missing values. The fourth step is to repeat steps two and three for each variable in the data set with missing values - this constitutes a single iteration. As a fifth step, you perform between five and ten iterations^[Though, the exact number of recommended iterations used in `MICE` are still up for debate [see @buuren_goothuis-oudshoorn_2011, @azur_et-al_2011]. The recommendation is that you elect to go with more iterations if not constrained by computational limitations.]. 
 
@@ -149,11 +149,13 @@ In the next section, I illustrate the use of random forest models for political 
 from itertools import repeat
 from timeit import default_timer
 import numpy as np
-import pandas as pd
 import duckdb as db
+import miceforest as mf
+import polars as pl
+import plotly.figure_factory as ff
+import plotly.io as pio
     #* user defined
-from fun import simulate, ampute, impute, create_iter_table
-#from utils import *
+from fun import simulate, ampute, transformation, impute, create_iter_table
 # Seed
 np.random.seed(90210)
 # Database
@@ -162,9 +164,11 @@ engine2=db.connect("../data/sim_amputed.db")
 #engine3=db.connect("../data/sim_imputed.db")
 #engine4=db.connect('../data/benchmarks.db')
 # Loop parameters
-n: int=500
+n: int=100
 datasets: int=1000
 m: int=10
+# Default template
+pio.templates.default = "plotly_white"
 ```
 
 I simulate two datasets to provide examples of simple scenarios. As we often use datasets we believe to contain causal relationships; I first consider two types of data generating processes when creating my simulated data. Using the `fabricatr` R package by @blair_et-al_2022, I first generate a dataset with a simple DGP depicted in the following equation: 
@@ -184,7 +188,7 @@ Z is a binary variable where the probability, specifically 40%, of a value of 1 
 #| label: simulated-generation-block
 
 # Create 1000 datasets and store it in a list
-sim = list(repeat(simulate(n), datasets))
+pop_data_frame, sim = simulate(num_obs = n, samples = datasets)
 
 # Take the original simulated datasets and store them in the database
 for i in range(datasets):
@@ -195,36 +199,52 @@ for i in range(datasets):
 engine.close()
 ```
 
-<!--
-```{r}
-#| label: simulated-generation-block-test
-#| eval: false
-# Simulate the data
-    #* specify empty list to store simulated data in
-simple_dgp_list = list()
-    #* run a for-loop to simulate 1000 datasets with the specifications from the text
-for(i in 1:datasets){
-    simple_dgp = fabricate(N = n,
-        Var1 = rnorm(N, mean = 10),
-        Var2 = draw_binary(N = N, prob = 0.5),
-        Var3 = draw_ordered(x = rnorm(N, mean = 3.5), breaks = c(1, 2, 3, 4, 5, 6, 7)),
-        Var4 = rnorm(N, mean = 0),
-        Var5 = draw_binary(N = N, prob = 0.25),
-        Var6 = draw_ordered(x = rnorm(N, mean = 1.75), breaks = c(1, 2, 3, 4, 5, 6, 7)),
-        Var7 = rnorm(N, mean = -10),
-        Var8 = draw_binary(N = N, prob = 0.75),
-        Var9 = draw_ordered(x = rnorm(N, mean = 5.25), breaks = c(1, 2, 3, 4, 5, 6, 7)),
-        X = rnorm(n = N, mean = 0.5 * Var2 + 0.3 * Var6 + rnorm(N, 0)),
-        Z = draw_binary(N = N, prob = ifelse(Var5 == 1 & Var7 == 0 & Var9 == 1, 0.4, 0.6)),
-        Y = draw_ordered(x = (mean = 0.9 * X + 0.3 * Z + rnorm(N, 0)), breaks = c(1, 2, 3, 4))
-    )
-    name = paste('dataset', i, sep = '_')
-    simple_dgp_list[[name]] = simple_dgp
-}
-save(simple_dgp_list, file="../data/original_datasets.RData")
+```{python}
+#| label: population_distributions
+#| fig-cap: Population and sample distributions
+#| fig-subcap:
+#|  - X
+#|  - Z
+#|  - Y
 
+# take the simulated dataframes and produce three dataframes for each x, y, and z variable
+x_list, z_list, y_list = transformation(
+    data_frames = sim,
+    datasets = datasets
+)
+
+# convert these dataframes to pandas to work nicely with plotly
+x_list_pandas = x_list.to_pandas()
+z_list_pandas = z_list.to_pandas()
+y_list_pandas = y_list.to_pandas()
+
+# Create density plots of variables across datasets
+    #* For x variable
+fig_x = ff.create_distplot(
+    [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframes
+    x_list.columns, # grab the names of the dataframe columns
+    show_hist = False, # do not show the histogram
+    show_rug = False # do not show the rugplot
+)
+    #* For z variable
+fig_z = ff.create_distplot(
+    [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframes
+    z_list.columns, # grab the names of the dataframe columns
+    show_hist = False, # do not show the histogram
+    show_rug = False # do not show the rugplot
+)
+    #* For y variable
+fig_y = ff.create_distplot(
+    [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframes
+    y_list.columns, # grab the names of the dataframe columns
+    show_hist = False, # do not show the histogram
+    show_rug = False # do not show the rugplot
+) 
+
+fig_x.show()
+fig_z.show()
+fig_y.show()
 ```
--->
 
 Once I have generated the dataset, I ampute it using the `mice` R package [@buuren_goothuis-oudshoorn_2011]. Following the estimate of the proportion of missing data in political science studies provided by @king_et-al_2001, I set the baseline proportion of values in the dataset to be imputed to 0.4. The amputation procedure is rather simple where the DGP for the missingness is determined through a linear regression. As the `RF-MICE` procedure performs best under complicated MAR patterns -- particularly those more complicated than a linear regression, I expect that this simulation will yield results quite similar to that of `AMELIA II` and other parametric procedures. This would mean that, for this particular circumstance, that `RF-MICE` performs no worse than `AMELIA II`; but for all the reasons above, we should expect `RF-MICE` to perform well under settings with more complicated missing data patterns.
 
@@ -232,7 +252,7 @@ Once I have generated the dataset, I ampute it using the `mice` R package [@buur
 #| label: amputation-block
 
 # Take each of the dataframes in the sim object, ampute them, and return a list object containing all of the dataframes
-amputed = list(map(lambda x: ampute(x, p_miss=0.4, p_obs=0.5, mecha="MAR"), sim))
+amputed = list(map(lambda x: ampute(x, perc = 0.4, random_state = 90210), sim))
 # Store results in database
 for i in range(datasets):
     data_frame = amputed[i]
@@ -242,6 +262,52 @@ for i in range(datasets):
 engine2.close()
 ```
 
+```{python}
+#| label: fig-datasets-with-missingness
+#| fig-cap: Datasets with missingness
+#| fig-subcap:
+#|  - X
+#|  - Z
+#|  - Y
+
+# take the amputed dataframes and produce three dataframes for each x, y, and z variable
+x_list, z_list, y_list = transformation(
+    data_frames = amputed,
+    datasets = datasets
+)
+
+# take the three dataframes, drop missing values and convert to pandas
+x_list_pandas = x_list.drop_nulls().to_pandas()
+z_list_pandas = z_list.drop_nulls().to_pandas()
+y_list_pandas = y_list.drop_nulls().to_pandas()
+
+# create density plots of the variables across datasets
+    #* for x variable
+fig_x = ff.create_distplot(
+    [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframe
+    x_list.columns, # grab the column names from the dataframe
+    show_hist = False, # do not show the histogram
+    show_rug = False # do not show the rugplot
+)
+    #* for z variable
+fig_z = ff.create_distplot(
+    [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframe
+    z_list.columns, # grab the column names from the dataframe
+    show_hist = False, # do not show the histogram
+    show_rug = False # do not show the rugplot
+)
+    #* for y variable
+fig_y = ff.create_distplot(
+    [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframe
+    y_list.columns, # grab the column names from the dataframe
+    show_hist = False, # do not show the histogram
+    show_rug = False # do not show the rugplot
+)
+
+fig_x.show()
+fig_z.show()
+fig_y.show()
+```
 <!--
 SEE HOW R DOES ON ITS OWN
 ```{python}
@@ -257,42 +323,6 @@ for i in range(datasets):
 
 # Close connection to database
 engine3.close()
-```
-
-```{r}
-#| label: simulated-amputation-block
-#| eval: false
-# ampute the data
-    #* specify empty list to store amputed datasets in 
-simple_amputed_list = list()
-    #* specify the weights used for the amputation
-ID = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-Var1 = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-Var2 = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-Var3 = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-Var4 = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-Var5 = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-Var6 = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-Var7 = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-Var8 = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-Var9 = c(0, 0, 0.072, 0, 0.072, 0, 0, 0, 0, 0, 0.072, 0.072, 0.072)
-X = c(0, 0, 0.076, 0, 0.076, 0, 0, 0, 0, 0, 0.076, 0.076, 0.076)
-Y = c(0, 0, 0.076, 0, 0.076, 0, 0, 0, 0, 0, 0.076, 0.076, 0.076)
-Z = c(0, 0, 0.076, 0, 0.076, 0, 0, 0, 0, 0, 0.076, 0.076, 0.076)
-weights = cbind(ID, Var1, Var2, Var3, Var4, Var5, Var6, Var7, Var8, Var9, X, Y, Z)
-    #* specify proportion of missingness
-missing_prop = c(0.1, 0.4, 0.9)
-    #* run a for-loop to ampute each of the 1000 datasets with the specifications from the text
-
-for(d in 1:data_sets){
-    for(i in missing_prop){
-        x = ampute(simple_dgp_list[[d]], mech = 'MAR', prop = i, freq = c(0, 0, 0.175, 0, 0, 0.175, 0, 0, 0, 0, 0.175, 0.175, 0.3), weights = weights)
-        assign(paste0('simple_mar_', i), x)
-    }
-    name = paste('amputed', d, sep = '_')
-    simple_amputed_list[[name]] = list('simple_mar_0.1' = simple_mar_0.1, 'simple_mar_0.4' = simple_mar_0.4, 'simple_mar_0.9' = simple_mar_0.9)
-}
-saveRDS(simple_amputed_list, '../simple_amputed_list.RDS')
 ```
 -->
 With these amputed datasets, I then apply some possible procedures one can use to impute these values. Interpolation is a quite simple procedure where I can fill in missing values by using the mean value of that particular variable. I perform this interpolation with the `MICE` package and iterate over it to provide 10 datasets. I also use the `AMELIA II` package [@honaker_et-al_2011] to perform standard MI and also store 10 datasets from the iterations. I use a standard Bayesian linear model in the `MICE` framework. Bayesian linear models with uniform distributions or a weak prior distribution are similar to the familiar Ordinary Least Squares [@gelman_et-al_2021]. As discussed before, the final procedure I use is a random forest in the `MICE` framework.
@@ -318,13 +348,13 @@ require(data.table)# for miceRanger
 # Load user defined functions
 source("fun.R")
 # Loop parameters
-n <- 500 # size of each sample
+n <- 100 # size of each sample
 datasets <- 1000 # size of number of samples
 
 # Connect to databases
-engine <- dbConnect(duckdb(), dbdir = "../data/sim_original.db", read_only = FALSE)
-engine2 <- dbConnect(duckdb(), dbdir = "../data/sim_amputed.db", read_only = FALSE)
-engine3 <- dbConnect(duckdb(), dbdir = "../data/sim_imputed.db", read_only = FALSE)
+engine <- dbConnect(duckdb(), dbdir = "../data/sim_original.db")
+engine2 <- dbConnect(duckdb(), dbdir = "../data/sim_amputed.db")
+engine3 <- dbConnect(duckdb(), dbdir = "../data/sim_imputed.db")
 engine4 <- dbConnect(duckdb(), dbdir = "../data/benchmarks.db")
 ```
 
@@ -333,12 +363,12 @@ engine4 <- dbConnect(duckdb(), dbdir = "../data/benchmarks.db")
 original <- list()
 amputed <- list()
 
-for (i in 0: 999) {
+for (i in 0: (datasets-1)) {
     original_table <- paste0('original_', as.character(i), sep="")
     original[[original_table]] <- dbGetQuery(engine, paste0('SELECT * FROM ', original_table, sep=""))
 }
 
-for (i in 0: 999) {
+for (i in 0: (datasets-1)) {
     amputed_table <- paste0('amputed_', as.character(i), sep="")
     df <- dbGetQuery(engine2, paste0('SELECT * FROM ', amputed_table, sep=""))
     amputed[[amputed_table]] <- df
@@ -618,8 +648,9 @@ Overall, we see that the procedures yield small differences between the actual a
 
 The differences between the procedures across all three variables are similar. This may be due to the fact that the simulation and the amputation is relatively simple to what we may encounter in the real world where we expect the MAR process to be much more complicated. This demonstrates, however, that the performance of these procedures are relatively heterogenous and that, for robustness' sake, we should perform our imputation using more than one tool. Speaking directly to the `RF-MICE` procedure, we see that it performs well for a dichotomous (one-hot encoded) outcome but performs less well than `AMELIA II` in circumstances where the outcome is continuous or ordinal. In a separate simulation study, @marbach_2021_pa also demonstrates similar differences in performance between `AMELIA II` and `RF-MICE` where the MAR procedure does not include an interaction term.^[When the MAR process includes an interaction term, `RF-MICE` tends to underperform relative to `AMELIA II`.]
 
+<!--
 ## Simple applied example
-
+-->
 <!--
 In this section, I use the 2020 American National Election Study to provide a simple example of the steps one might take to handle missing data and how they might implement the `RF-MICE` procedure in practice. The example that I use here is to examine the predictors of vote choice among the American electorate. While this is a rich area of research, I use an admittedly oversimplified version of a model of vote choice. In the supplementary materials, readers may find code to replicate the steps I take to do this.
 ```{r}
