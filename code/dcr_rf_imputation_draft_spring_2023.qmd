@@ -31,18 +31,20 @@ keywords:
 date: today
 #bibliography: "../assets/references.bib"
 format:
-  pdf:
-    template: "../../../templates/manuscripts/apsr_template.tex"
-    cite-method: biblatex
-    #latex-output-dir: "../drafts"
-    keep-tex: true
+  hikmah-pdf: default
+  #pdf:
+  #  template: "../../../templates/manuscripts/apsr_template.tex"
+  #  cite-method: biblatex
+  #  #latex-output-dir: "../drafts"
+  #  keep-tex: true
 execute:
     echo: false
     message: false
     warning: false
+    eval: false
 engine: knitr
-params:
-    windows: true
+#params:
+#    #windows: true
 ---
 {{< pagebreak >}}
 <!-- 
@@ -65,7 +67,7 @@ Missing values are common in social science data. @king_et-al_2001 estimate that
 
 Unsurprisingly, several political scientists generate tools and learn from other fields to deal with these challenges due to the severity of the consequences for inference. There are four primary approaches that political scientists use in dealing with missing data: (1) listwise deletion or complete case analysis (LWD), (2) simple mean or median based imputation, (3) hot deck or regression-based imputation, or (4) multiple imputation (MI). Many of the most popular approaches to imputation carry assumptions that scholars have to satisfy. This manuscript aims to provide a primer to political scientists on the use of machine learning models in the Multiple Imputation with Chained Equations (`MICE`) framework - an extension of the familiar MI approach. 
 
-Machine learning with `MICE` is not a new approach. While a JSTOR search of Political Science journals reports a handful of articles that discuss this particular approach, it is certainly not widely used by political scientists. 
+Machine learning with `MICE` is not a new approach. While a JSTOR search of Political Science journals reports a handful of articles that discuss this particular approach, it is certainly not widely used by political scientists nor has it recieved much accessible discussion of how it works.
 
 As the present article discusses, `MICE` allows the researcher to choose various models to aid the imputation process. Selecting a model with its underlying assumptions provides many benefits for researchers in choosing a procedure that is most appropriate for their particular circumstances. Choosing models that allow for flexibility and models that do not have a number of restrictive assumptions benefit those unsure about the exact data-generating process of the missingness. The specific emphasis in this paper on using random forest models in `MICE` (`RF-MICE`) results from the strong preference of those who use machine learning models for predictive regressions to use random forest models due to their flexibility as a result of their fully non-parametric nature and for their performance under many different, and complex, circumstances. Fields like the biomedical sciences treat missing values as out-of-sample predictions that random forest models predict; they see the purpose of imputation as aligned with a task that random forest models are optimal. As other fields use this `RF-MICE` procedure, there are implementations in STATA, R, and Python. All of which are relatively easy in terms of knowledge to code in either of these languages [@buuren_goothuis-oudshoorn_2011]. To be clear, this manuscript argues that we should not only consider using the `MICE` framework for imputation but also should consider using Random Forest models.
 
@@ -97,8 +99,9 @@ Hot Deck approaches to imputing missingness are regression-based in that they de
 
 MI seeks to solve this issue by using the entire dataset for imputing missing values [@rubin_1996]. This approach uses the other variables in the dataset to generate a joint posterior distribution of all possible missing values for that particular observation. Many assume that most social science data sets are sufficiently large enough to condition on the mechanism generating MAR [@schunk_2008]. Unlike the other approaches, MI also generates uncertainty around the imputed values - via its construction of the joint posterior distribution [@rubin_1996] - which enables the researcher to be more transparent about the validity of those imputed values and to include that uncertainty in the researcher's subsequent statistical analyses [@king_et-al_2001, @von-hippel_2015]. A prevalent implementation of MI in political science is Honaker, King, and Blackwell's @honaker_et-al_2011] `AMELIA II` software [@lall_2016]. This useful tool provides a computationally fast and simple process for imputation. Compared to the other approaches to missing data, `AMELIA II` performs quite well [@honaker_et-al_2011, @kropko_et-al_2014]. MI, however, often requires a set of distributional assumptions for the joint distribution - often the multivariate normal [@honaker_et-al_2011].
 
-There is a variant to MI that seeks more computational efficiency and loosens some of the distributional assumptions required. This variant is called Multiple Imputation through Chained Equations (`MICE`). `MICE` performs quite well for large imputation tasks. MI struggles to impute values when there is missingness in the other variables of the dataset [@kropko_et-al_2014] - which is quite common. Though not reliant on a multivariate normal distribution, Conditional MI still relies on generalized linear models (GLM) in calculating the values. `MICE` tries to get around this problem in a few steps, as described by @azur_et-al_2011. @fig-process provides a visual representation of the procedure for a form of `MICE` used in this manuscript. I include more details about random forest models in the following subsection.
+There is a variant to MI that seeks more computational efficiency and loosens some of the distributional assumptions required. This variant is called Multiple Imputation through Chained Equations (`MICE`). `MICE` performs quite well for large imputation tasks. MI struggles to impute values when there is missingness in the other variables of the dataset [@kropko_et-al_2014] - which is quite common. Though not reliant on a multivariate normal distribution, Conditional MI still relies on generalized linear models (GLM) in calculating the values. `MICE` tries to get around this limitation in a few steps, as described by @azur_et-al_2011. @fig-process provides a visual representation of the procedure for a form of `MICE` used in this manuscript. I include more details about random forest models in the following subsection.
 
+{{< include mermaid_code.qmd >}}
 
 First, `MICE` performs a simple imputation, or interpolation, for every missing value in the entire dataset. These are the placeholder values. The second step in the general `MICE` paradigm involves identifying one variable to impute. Once complete, it then removes those placeholder values. The third step then involves regressing the observed values of the variable on the other variables in the model and replacing the predicted values generated from the regression model for the missing values. The fourth step is to repeat steps two and three for each variable in the data set with missing values - this constitutes a single iteration. As a fifth step, you perform between five and ten iterations^[Though, the exact number of recommended iterations used in `MICE` are still up for debate [see @buuren_goothuis-oudshoorn_2011, @azur_et-al_2011]. The recommendation is that you elect to go with more iterations if not constrained by computational limitations.]. 
 
@@ -125,15 +128,15 @@ We can discuss their applicability to imputation in the `MICE` framework with a 
 
 OLS models often perform relatively poorly on making out-of-sample predictions as they are BLUE, assuming the data on hand are relatively representative of the population. As we have MAR data, this assumption likely fails, and any out-of-sample predictions are likely to be biased. Further, OLS may also generate out-of-bounds predictions for non-continuous data [@long_1997, @gelman_et-al_2021] which is particularly troublesome in settings of prediction.
 
-Other models provide within-bounds predictions, such as logistic models; however, as generalized linear models, they still assume a linear functional form. Though OLS and Logistic regression underlie a lot of machine learning as tools, many consider them to have limited applicability to complicated settings requiring prediction. Random forest models provide within-bounds predictions, and they are fully non-parametric [@hastie_et-al_2009], meaning they do not assume a functional form and consequently a joint distribution. This means that we have more flexibility in terms of what variables we have in our datasets that we need to impute. As social scientists, we rarely have datasets that contain DGPs that fall neatly within the optimal realm for GLMs. This added flexibility by using `MICE` and random forests makes the researcher's job easier. 
+Other models provide within-bounds predictions, such as logistic models; however, as generalized linear models, they still assume a linear functional form and often produce biased interpretations of the likelihood function when presented with unobserved systematic processes [CITATION]. Though OLS and Logistic regression underlie a lot of machine learning as tools, many consider them to have limited applicability to complicated settings requiring prediction. Random forest models provide within-bounds predictions, and they are fully non-parametric [@hastie_et-al_2009], meaning they do not assume a functional form and consequently a joint distribution. This means that we have more flexibility in terms of what variables we have in our datasets that we need to impute. As social scientists, we rarely have datasets that contain DGPs that fall neatly within the optimal realm for GLMs. This added flexibility by using `MICE` and random forests makes the researcher's job easier. 
 
 On other performance metrics, random forest models, as an ensemble method, provide much more accurate predictions than single-tree alternatives in machine learning, such as CART [@montgomery_olivella_2018]. As discussed above, rather than generating a single estimate from a single model, ensemble models, like random forests, calculate multiple models and learn from their performance; this is the purpose of using the bootstrapped samples.
 
-In the context of using `MICE`, I argue that political scientists should consider using random forest models to make accurate predictions with fewer assumptions and be more lenient in terms of conditioning on the cause of MAR in the data set. Recall that within each `MICE` iteration, one performs a model predicting (imputing) a missing value based on the other variables in the dataset. Explicitly, this means you are running a model per variable with missing data. 
+In the context of using `MICE`, I argue that political scientists should *consider* using random forest models to make accurate predictions with fewer assumptions and be more lenient in terms of conditioning on the cause of MAR in the data set. Recall that within each `MICE` iteration, one performs a model predicting (imputing) a missing value based on the other variables in the dataset. Explicitly, this means you are running a model per variable with missing data. 
 
 Given that random forests are non-parametric, within each `MICE` iteration, the relationship between the variable to be imputed and those used to make the predictions can be non-linear and can take many different multivariate distributional forms. This is a significant advancement on traditional MI, which assumes a multivariate normal distribution. Additionally, this is an advancement on other `MICE` models that political scientists use, which may not inherently conceptualize missing data as these unobserved values to predict from a generalized relationship of the observed variable with the other variables in the dataset. These relationships are also not assumed to be linear. Furthermore, using `RF-MICE` has the advantage over hot-deck procedures for those unsure about a variable's precise DGP for MAR. 
 
-In the next section, I illustrate the use of random forest models for political scientists by demonstrating a simulated and real-world application of a random forest implementation of `MICE`. The following section also compares this implementation's performance to other common approaches to handling missing data in political science.
+In the next section, I illustrate the use of random forest models for political scientists by demonstrating a simulated application of a random forest implementation of `MICE`. The following section also compares this implementation's performance to other common approaches to handling missing data in political science in terms of our ability to reduce unobserved bias in our data and in computational costs.
 <!--
     END OF KEY SECTION FOR ARGUMENT
 -->
@@ -143,7 +146,7 @@ In the next section, I illustrate the use of random forest models for political 
 
 ```{python}
 #| label: setup-block
-
+#| eval: true
 # import modules
     #* from env
 from itertools import repeat
@@ -169,20 +172,24 @@ datasets: int=1000
 m: int=10
 # Default template
 pio.templates.default = "plotly_white"
+
+dist_color = []
+for i in range(datasets):
+    i = "#D3D3D3"
+    dist_color.append(i)
 ```
 
-I simulate two datasets to provide examples of simple scenarios. As we often use datasets we believe to contain causal relationships; I first consider two types of data generating processes when creating my simulated data. Using the `fabricatr` R package by @blair_et-al_2022, I first generate a dataset with a simple DGP depicted in the following equation: 
+Using the `numpy` library [@numpy], I simulate a population with $N=1000000$. The population has 5 variables with the following DGP's.
 
 $$
-Y = 0.9X + 0.3Z + \epsilon ~ N(0, 1)
+a_i = Gamma(2,2)
+b_i = Binomial(1,0.6)
+x_i = 0.2 \times a_i + 0.5 \times b_i + Normal(0,1)
+z_i = 0.9 \times a_i \times b_i + Normal(0,1)
+y_i = 0.6 \times x_i + 0.9 \times z_i + Normal(0,1)
 $$
 
-The parameters for X and Z are 0.9 and 0.3, respectively. I also include some random noise in the data generating process. For the dataset, the outcome variable, Y, is generated with the respective DGP and a link function that draws values, according to the DGP and breaks them into a 5-point ordinal scale from 1 to 5. In the dataset, I include nine other variables that are not part of the DGP for Y. As Multiple Imputation is often dependent on the amount of information included in the dataset, including more variables than just the predictors will allow for a test of the different procedures' success at including relevant information from the dataset in performing the imputation. I generate values for X and Z by using the values of the nine random variables. X is a continuos variable and its DGP is: 
-$$ 
-X = 0.5\text{Var2} + 0.3\text{Var6} + \epsilon ~ N(0, 1)
-$$
-
-Z is a binary variable where the probability, specifically 40%, of a value of 1 occurring is dependent on whether $Var5 = 1$, $Var7 = 0$, and $Var9 = 1$.
+I then use the `polars` library [@polars] to generate 1000 random samples from the population with $n = 100$ for each sample. To introduce missingness into my data, I use the `miceforest` library [@miceforest] to "ampute" 40% of the data for each of these samples with a MAR process. As one of the advantages of the `RF-MICE` procedure is to impute data generated from more complicated MAR processes, I ampute the data by constructing a logistic regression for each variable. Where the predicted value equals one, the corresponding observation is counted as missing [@miceforest]. For the reader, @fig-population-dist presents the distributions of data for the X, Z, and Y variables for my samples *before* amputation and @fig-amputed-dist presents the distribution of data fro the X, Z, and Y variables for my samples *after* amputation.
 
 ```{python}
 #| label: simulated-generation-block
@@ -201,11 +208,6 @@ engine.close()
 
 ```{python}
 #| label: population_distributions
-#| fig-cap: Population and sample distributions
-#| fig-subcap:
-#|  - X
-#|  - Z
-#|  - Y
 
 # take the simulated dataframes and produce three dataframes for each x, y, and z variable
 x_list, z_list, y_list = transformation(
@@ -222,31 +224,36 @@ y_list_pandas = y_list.to_pandas()
     #* For x variable
 fig_x = ff.create_distplot(
     [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframes
-    x_list.columns, # grab the names of the dataframe columns
+    x_list.columns,
+    colors=dist_color, # grab the names of the dataframe columns
     show_hist = False, # do not show the histogram
     show_rug = False # do not show the rugplot
 )
     #* For z variable
 fig_z = ff.create_distplot(
     [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframes
-    z_list.columns, # grab the names of the dataframe columns
+    z_list.columns,
+    colors=dist_color, # grab the names of the dataframe columns
     show_hist = False, # do not show the histogram
     show_rug = False # do not show the rugplot
 )
     #* For y variable
 fig_y = ff.create_distplot(
     [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframes
-    y_list.columns, # grab the names of the dataframe columns
+    y_list.columns,
+    colors=dist_color, # grab the names of the dataframe columns
     show_hist = False, # do not show the histogram
     show_rug = False # do not show the rugplot
 ) 
 
-fig_x.show()
-fig_z.show()
-fig_y.show()
-```
+fig_x.update_layout(showlegend=False)
+fig_z.update_layout(showlegend=False)
+fig_y.update_layout(showlegend=False)
 
-Once I have generated the dataset, I ampute it using the `mice` R package [@buuren_goothuis-oudshoorn_2011]. Following the estimate of the proportion of missing data in political science studies provided by @king_et-al_2001, I set the baseline proportion of values in the dataset to be imputed to 0.4. The amputation procedure is rather simple where the DGP for the missingness is determined through a linear regression. As the `RF-MICE` procedure performs best under complicated MAR patterns -- particularly those more complicated than a linear regression, I expect that this simulation will yield results quite similar to that of `AMELIA II` and other parametric procedures. This would mean that, for this particular circumstance, that `RF-MICE` performs no worse than `AMELIA II`; but for all the reasons above, we should expect `RF-MICE` to perform well under settings with more complicated missing data patterns.
+fig_x.write_image("../assets/pop_x_dist.png")
+fig_z.write_image("../assets/pop_z_dist.png")
+fig_y.write_image("../assets/pop_y_dist.png")
+```
 
 ```{python}
 #| label: amputation-block
@@ -263,12 +270,7 @@ engine2.close()
 ```
 
 ```{python}
-#| label: fig-datasets-with-missingness
-#| fig-cap: Datasets with missingness
-#| fig-subcap:
-#|  - X
-#|  - Z
-#|  - Y
+#| label: datasets-with-missingness
 
 # take the amputed dataframes and produce three dataframes for each x, y, and z variable
 x_list, z_list, y_list = transformation(
@@ -285,29 +287,51 @@ y_list_pandas = y_list.drop_nulls().to_pandas()
     #* for x variable
 fig_x = ff.create_distplot(
     [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframe
-    x_list.columns, # grab the column names from the dataframe
+    x_list.columns,
+    colors=dist_color, # grab the column names from the dataframe
     show_hist = False, # do not show the histogram
     show_rug = False # do not show the rugplot
+    
 )
     #* for z variable
 fig_z = ff.create_distplot(
     [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframe
-    z_list.columns, # grab the column names from the dataframe
+    z_list.columns,
+    colors=dist_color, # grab the column names from the dataframe
     show_hist = False, # do not show the histogram
-    show_rug = False # do not show the rugplot
+    show_rug = False # do not show the rugplot,
+    
 )
     #* for y variable
 fig_y = ff.create_distplot(
     [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframe
-    y_list.columns, # grab the column names from the dataframe
+    y_list.columns,
+    colors=dist_color, # grab the column names from the dataframe
     show_hist = False, # do not show the histogram
     show_rug = False # do not show the rugplot
 )
 
-fig_x.show()
-fig_z.show()
-fig_y.show()
+fig_x.update_layout(showlegend=False)
+fig_z.update_layout(showlegend=False)
+fig_y.update_layout(showlegend=False)
+
+fig_x.write_image("../assets/amputed_x_dist.png")
+fig_z.write_image("../assets/amputed_z_dist.png")
+fig_y.write_image("../assets/amputed_y_dist.png")
 ```
+
+![X](../assets/pop_x_dist.png){#fig-population-dist-x}
+
+![Z](../assets/pop_z_dist.png){#fig-population-dist-z}
+
+![Y](../assets/pop_y_dist.png){#fig-population-dist-y}
+
+![X](../assets/amputed_x_dist.png){#fig-amputed-dist-x}
+
+![Z](../assets/amputed_z_dist.png){#fig-amputed-dist-z}
+
+![Y](../assets/amputed_y_dist.png){#fig-amputed-dist-y}
+
 <!--
 SEE HOW R DOES ON ITS OWN
 ```{python}
@@ -325,10 +349,13 @@ for i in range(datasets):
 engine3.close()
 ```
 -->
-With these amputed datasets, I then apply some possible procedures one can use to impute these values. Interpolation is a quite simple procedure where I can fill in missing values by using the mean value of that particular variable. I perform this interpolation with the `MICE` package and iterate over it to provide 10 datasets. I also use the `AMELIA II` package [@honaker_et-al_2011] to perform standard MI and also store 10 datasets from the iterations. I use a standard Bayesian linear model in the `MICE` framework. Bayesian linear models with uniform distributions or a weak prior distribution are similar to the familiar Ordinary Least Squares [@gelman_et-al_2021]. As discussed before, the final procedure I use is a random forest in the `MICE` framework.
+With these amputed datasets, I then apply some of the procedures I have discussed to impute these values. Interpolation is a quite simple procedure where I can fill in missing values by using the mean value of that particular variable for the non-missing observations. I perform this interpolation with the `mice` package [@mice] and iterate over it to provide 10 datasets. I also use the `AMELIA II` package [@honaker_et-al_2011] to perform standard MI and also store 10 datasets from the iterations. I use a standard Bayesian linear model in the `MICE` framework with the `mice` package [@mice]. Bayesian linear models with uniform distributions or a weak prior distribution are similar to the familiar Ordinary Least Squares [@gelman_et-al_2021]. As discussed before, the final procedure I use is a random forest in the `MICE` framework. I perform the `RF-MICE` procedure using the `mice` package [@mice] and an alternative package `miceRanger` [@miceRanger].
+
+When producing the imputed datasets, I use the `tictoc` package to record the amount of time each procedure takes to complete the task on the 1000 samples as a measure of computational cost. As a number of factors may affect the absolute computational costs for these procedures (e.g., hardware, whether other applications or software are running, whether one uses parallelization, etcetera), I am primarily going to focus on the relative computational costs of each procedure.
 
 ```{r}
 #| label: simulation-r-setup-block
+#| eval: true
 # Set seed  
 set.seed(90210)
 # Modularly load required functions
@@ -360,6 +387,7 @@ engine4 <- dbConnect(duckdb(), dbdir = "../data/benchmarks.db")
 
 ```{r}
 #| label: load-simulated-data-r
+#| eval: true
 original <- list()
 amputed <- list()
 
@@ -384,7 +412,7 @@ for (i in 0: (datasets-1)) {
 
 ```{r}
 #| label: r-imputations
-#| eval: true
+#| eval: false
 # Interpolation
 tic.clearlog()
 tic("Interpolate")
@@ -452,6 +480,7 @@ for (i in 1: datasets) {
 -->
 ```{r}
 #| label: simulated-imputation-load
+#| eval: true
 # Create empty list elements
 interpolate <- list()
 amelia <- list()
@@ -490,104 +519,12 @@ for (i in 1: datasets) {
     rfranger[[rfranger_table]] <- df
 }
 ```
-<!--
-```{r}
-#| label: simulated-imputation-block
-#| results: hide
-#| eval: false
-# Impute the missing data
-    #* reformat list objects
-simple_mar_0.1_list = list()
-simple_mar_0.4_list = list()
-simple_mar_0.9_list = list()
-for(d in 1:data_sets){
-    simple_mar_0.1_list[[d]] = simple_amputed_list[[d]][['simple_mar_0.1']]
-    simple_mar_0.4_list[[d]] = simple_amputed_list[[d]][['simple_mar_0.4']]
-    simple_mar_0.9_list[[d]] = simple_amputed_list[[d]][['simple_mar_0.9']]
-}
-    #* interpolation
-simple_mean_list_0.4 = list()
-for(d in 1:data_sets){
-    simple_mean = mice(simple_mar_0.4_list[[d]]$amp, m = 10, meth = 'mean')
-    simple_mean_list_0.4[[d]] = simple_mean
-}
-saveRDS(simple_mean_list_0.4, '../simple_mean_list_04.RDS')
 
-simple_mean_list_0.1 = list()
-for(d in 1:data_sets){
-    simple_mean = mice(simple_mar_0.1_list[[d]]$amp, m = 10, meth = 'mean')
-    simple_mean_list_0.1[[d]] = simple_mean
-}
-simple_mean_list_0.9 = list()
-for(d in 1:data_sets){
-    simple_mean = mice(simple_mar_0.9_list[[d]]$amp, m = 10, meth = 'mean')
-    simple_mean_list_0.9[[d]] = simple_mean
-}
-    #* AMELIA
-simple_amelia_list_0.4 = list()
-for(d in 1:data_sets){
-    simple_amelia = amelia(data.frame(simple_mar_0.4_list[[d]]$amp), m = 10)
-    simple_amelia_list_0.4[[d]] = simple_amelia
-}
-saveRDS(simple_amelia_list_0.4, '../simple_amelia_list_04.RDS')
-
-simple_amelia_list_0.1 = list()
-for(d in 1:data_sets){
-    simple_amelia = amelia(data.frame(simple_mar_0.1_list[[d]]$amp), m = 10)
-    simple_amelia_list_0.1[[d]] = simple_amelia
-}
-simple_amelia_list_0.9 = list()
-for(d in 1:data_sets){
-    simple_amelia = amelia(data.frame(simple_mar_0.9_list[[d]]$amp), m = 10)
-    simple_amelia_list_0.9[[d]] = simple_amelia
-}
-    #* linear bayes
-simple_linear_list_0.4 = list()
-for(d in 1:data_sets){
-    simple_linear = mice(simple_mar_0.4_list[[d]]$amp, m = 10, meth = 'norm')
-    simple_linear_list_0.4[[d]] = simple_linear
-}
-saveRDS(simple_linear_list_0.4, '../simple_linear_list_04.RDS')
-
-simple_linear_list_0.1 = list()
-for(d in 1:data_sets){
-    simple_linear = mice(simple_mar_0.1_list[[d]]$amp, m = 10, meth = 'norm')
-    simple_linear_list_0.1[[d]] = simple_linear
-}
-simple_linear_list_0.9 = list()
-for(d in 1:data_sets){
-    simple_linear = mice(simple_mar_0.9_list[[d]]$amp, m = 10, meth = 'norm')
-    simple_linear_list_0.9[[d]] = simple_linear
-}
-    #* RF-MICE
-simple_rf_list_0.4 = list()
-for(d in 1:data_sets){
-    simple_rf = mice(simple_mar_0.4_list[[d]]$amp, m = 10, meth = 'rf')
-    simple_rf_list_0.4[[d]] = simple_rf
-}
-saveRDS(simple_rf_list_0.4, '../simple_rf_list_04.RDS')
-
-simple_rf_list_0.1 = list()
-for(d in 1:data_sets){
-    simple_rf = mice(simple_mar_0.1_list[[d]]$amp, m = 10, meth = 'rf')
-    simple_rf_list_0.1[[d]] = simple_rf
-}
-simple_rf_list_0.9 = list()
-for(d in 1:data_sets){
-    simple_rf = mice(simple_mar_0.9_list[[d]]$amp, m = 10, meth = 'rf')
-    simple_rf_list_0.9[[d]] = simple_rf
-}
-```
--->
-<!--
-Figure \ref{fig:distributions} depicts the distributions of the complete dataset (solid black line), the dataset as MAR (dotted black line), and the ten datasets generated from the given procedure (solid line with varying hues of grey) for the outcome variable, Y, in the simple DGP dataset. As expected, AMELIA and Linear Regression in MICE provide out-of-sample predictions. Relative to interpolation, the RF-MICE procedure does a better job replicating the original distribution where the black line is covered by the lines from the imputed datasets.
--->
-
-Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s = 1000$. I have a total of $s \times m$ datasets. For each s dataset, I took the difference of each m dataset from the complete dataset and took the average of these differences to give me a mean score of the discrepancy for each s dataset. @fig-y-simulated, @fig-x-simulated, @fig-z-simulated represents these mean discrepancy scores for the three variables that were originally imputed.
+Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s = 1000$. I have a total of $s \times m$ datasets. For each s dataset, I took the difference of each m dataset from the complete dataset and took the average of these differences to give me a mean score of the discrepancy for each s dataset. @fig-discrepancy represents these mean discrepancy scores for the three variables that were originally imputed.
 
 ```{r}
 #| label: calculating average discrepancies
-
+#| eval: true
 # boxplots of difference between values
     #* Take the mean difference within imputed datasets
         #** Mean
@@ -603,23 +540,9 @@ rfranger_diff = discrepancy(imputed = rfranger, original = original)
 ```
 
 ```{r}
-#| label: fig-y-simulated
+#| label: fig-discrepancy-x
 #| eval: true
-#| fig-cap: Average discrepancy scores for Y
-ggplot() +
-    geom_boxplot(aes(x = 'Mean', y = mean_y), data = interpolate_diff) +
-    geom_boxplot(aes(x = 'AMELIA', y = mean_y), data = amelia_diff) +
-    geom_boxplot(aes(x = 'Linear MICE', y = mean_y), data = lmice_diff) +
-    geom_boxplot(aes(x = 'RF MICE', y = mean_y), data = rfmice_diff) +
-    geom_boxplot(aes(x = "RF Ranger", y = mean_y), data = rfranger_diff) +
-    theme_minimal() +
-    labs(x = 'Y', y = 'Average difference from complete data')
-```
-
-```{r}
-#| label: fig-x-simulated
-#| eval: true
-#| fig-cap: Average discrepancy scores for X
+#| fig-cap: Average discrepancy scores - X
 ggplot() +
     geom_boxplot(aes(x = 'Mean', y = mean_x), data = interpolate_diff) +
     geom_boxplot(aes(x = 'AMELIA', y = mean_x), data = amelia_diff) +
@@ -631,10 +554,10 @@ ggplot() +
 ```
 
 ```{r}
-#| label: fig-z-simulated
+#| label: fig-discrepancy-z
 #| eval: true
-#| fig-cap: Average discrepancy scores for Z
-ggplot() +
+#| fig-cap: Average discrepancy scores - Z
+discrep_z <- ggplot() +
     geom_boxplot(aes(x = 'Mean', y = mean_z), data = interpolate_diff) +
     geom_boxplot(aes(x = 'AMELIA', y = mean_z), data = amelia_diff) +
     geom_boxplot(aes(x = 'Linear MICE', y = mean_z), data = lmice_diff) +
@@ -644,181 +567,25 @@ ggplot() +
     labs(x = 'Z', y = 'Average difference from complete data')
 ```
 
+```{r}
+#| label: fig-discrepancy-y
+#| eval: true
+#| fig-cap: Average discrepancy scores - Y
+ggplot() +
+    geom_boxplot(aes(x = 'Mean', y = mean_y), data = interpolate_diff) +
+    geom_boxplot(aes(x = 'AMELIA', y = mean_y), data = amelia_diff) +
+    geom_boxplot(aes(x = 'Linear MICE', y = mean_y), data = lmice_diff) +
+    geom_boxplot(aes(x = 'RF MICE', y = mean_y), data = rfmice_diff) +
+    geom_boxplot(aes(x = "RF Ranger", y = mean_y), data = rfranger_diff) +
+    theme_minimal() +
+    labs(x = 'Y', y = 'Average difference from complete data')
+```
+
 Overall, we see that the procedures yield small differences between the actual and estimated values. For Y, `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_y)) ```, the Linear `MICE` procedure has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_y)) ```, the interpolation procedure has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_y)) ```, and `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_y)) ```. For X, we see that the `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_x)) ```, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_x)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_x)) ```, and AMELIA has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_x)) ```. For Z, we also see that `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_z)) ```, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_z)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_z)) ``` and `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_z)) ```. 
 
 The differences between the procedures across all three variables are similar. This may be due to the fact that the simulation and the amputation is relatively simple to what we may encounter in the real world where we expect the MAR process to be much more complicated. This demonstrates, however, that the performance of these procedures are relatively heterogenous and that, for robustness' sake, we should perform our imputation using more than one tool. Speaking directly to the `RF-MICE` procedure, we see that it performs well for a dichotomous (one-hot encoded) outcome but performs less well than `AMELIA II` in circumstances where the outcome is continuous or ordinal. In a separate simulation study, @marbach_2021_pa also demonstrates similar differences in performance between `AMELIA II` and `RF-MICE` where the MAR procedure does not include an interaction term.^[When the MAR process includes an interaction term, `RF-MICE` tends to underperform relative to `AMELIA II`.]
 
-<!--
-## Simple applied example
--->
-<!--
-In this section, I use the 2020 American National Election Study to provide a simple example of the steps one might take to handle missing data and how they might implement the `RF-MICE` procedure in practice. The example that I use here is to examine the predictors of vote choice among the American electorate. While this is a rich area of research, I use an admittedly oversimplified version of a model of vote choice. In the supplementary materials, readers may find code to replicate the steps I take to do this.
-```{r}
-#| label: anes-cleaning
-#| eval: false
-# Title: 2020 ANES applied example 
 
-# Setup 
-    #* set the seed
-set.seed(90210)
-    #* modularly load the functions that I'll need for the applied example
-box::use(
-    haven = haven[read_dta],
-    dplyr = dplyr[select, mutate_all, mutate, rename],
-    finalfit = finalfit[missing_pairs, missing_compare],
-    ggplot2 = ggplot2[labs],
-    kableExtra = kableExtra[kbl],
-    Amelia = Amelia[amelia],
-    mice = mice[mice],
-    miceadds = miceadds[datalist2mids],
-    missDiag = missDiag[missDiag],
-    ggplot2 = ggplot2[ggplot, geom_boxplot, aes, theme_minimal, labs]
-)
-    #* create empty anes_2020 list object
-anes_2020 = list()
-    #* load the dataset and store it in the anes_2020 list object as original
-anes_2020[['original']] = read.csv('data/anes_timeseries_2020/anes_time_series_2020.csv')
-
-# Cleaning
-anes_2020[['clean']] = anes_2020[['original']] |>
-    select('V202054x', 'V202065x', 'V202068x', 'V202105x', 'V202106x', 'V202107x', 'V202108x', 'V202116', 'V202117', 'V202118', 'V202119', 'V202122', 'V202123', 'V202138y', 'V202139y1', 'V202140y1', 'V202141y1', 'V202142y1', 'V202143', 'V202144', 'V202145', 'V202146', 'V202147', 'V202148', 'V202149', 'V202150', 'V202156', 'V202157', 'V202158', 'V202159', 'V202160', 'V202161', 'V202162', 'V202163', 'V202164', 'V202165', 'V202166', 'V202167', 'V202168', 'V202169', 'V202170', 'V202171', 'V202172', 'V202173', 'V202174', 'V202175', 'V202176', 'V202177', 'V202178', 'V202179', 'V202180', 'V202181', 'V202182', 'V202183', 'V202184', 'V202185', 'V202186', 'V202187', 'V202203x', 'V202212', 'V202213', 'V202214', 'V202215', 'V202216', 'V202219', 'V202220', 'V202221', 'V202222', 'V202223', 'V202224', 'V202225', 'V202231x', 'V202232', 'V202233', 'V202236x', 'V202242x', 'V202252x', 'V202255x', 'V202259x', 'V202260', 'V202261', 'V202262', 'V202263', 'V202264', 'V202265', 'V202266', 'V202267', 'V202268', 'V202269', 'V202270', 'V202273x', 'V202276x', 'V202279x', 'V202282x', 'V202286x', 'V202290x', 'V202292', 'V202300', 'V202301', 'V202302', 'V202303', 'V202304', 'V202305', 'V202308x', 'V202310', 'V202311', 'V202312', 'V202320x', 'V202321', 'V202325', 'V202328x', 'V202331x', 'V202336x', 'V202341x', 'V202344x', 'V202347x', 'V202350x', 'V202351', 'V202352', 'V202355', 'V202357', 'V202361x', 'V202364x', 'V202367x', 'V202370x', 'V202373x', 'V202376x', 'V202377', 'V202380x', 'V202383x', 'V202387x', 'V202390x', 'V202451', 'V202457', 'V202468x', 'V202490x', 'V202493x', 'V201507x', 'V201511x', 'V201533x', 'V201549x', 'V201600') |>
-    mutate_all(~ifelse(.x >= 0, .x, NA)) |> 
-    mutate(`White` = ifelse(V201549x == 1, 1, 0),
-            `Female` = ifelse(V201600 == 2, 1, 0),
-            `PID` = ifelse(V202065x == 1, 1,
-                            ifelse(V202065x > 3, 2, 3)),
-            `Vote` = ifelse(V202105x == 10, 1, 0),
-            `Age` = V201507x,
-            `Employment` = V201533x,
-            `Education` = V201511x) #|>
-    #select(White, Female, PID, Vote, Age, Employment, Education)
-```
-
-ANES conducts the survey in two waves; the first wave occurred in the months leading up to the 2020 Presidential Election, and the post wave happened in the months after. As there are two waves, there is ample opportunity for multicollinearity to occur and to cause both imputation procedures some problems. As a result, I removed the pre-election survey items and a portion of the post-election survey items (primarily those that are administrative or are variables later used to create summary responses). This cleaning of the dataset leaves ```{r} ncol(anes_2020[['clean']]) ``` variables.
-
-Before imputation I also recoded the variables that will be used in the statistical model. Vote is coded as 1 if the respondent reported voting for Joe Biden, and 0 if they did not. The variable White is coded as 1 if the respondent self-reported that they are White and 0 otherwise. The variable Female is coded as 1 if the respondent self-reported that they are Female and 0 otherwise. Finally, the variable Party ID is a 3-item measure where respondents that reported that they are Democrats are coded as a 1, those that reported that they are independent are coded as 2 and those that reported that they are Republicans are coded as 3. I also will use the default coding that the ANES provides for the respondent's age, employment status, and their education.
-
-Before I impute the data, I examine the patterns of missingness in the dataset. I am particularly interested in examining these missingness patterns on the dependent variable of the statistical analysis I intend to perform later - an indicator variable of voting for the Democratic presidential candidate or not. What variables seem to be plausible causes of missingness in a MAR pattern are partisanship of the respondent, age, whether the respondent is white, and their level of education. Those who lost the election may be less likely to report how they voted in the election to a surveyor. I might also expect those who are less educated to be less likely to report how they voted in an election due to their proclivity to participate in surveys less and to vote at lower rates. I also expect that the race of the respondent and gender may affect the degree to which one is willing to respond. @fig-missing-pattern presents the a matrix demonstrating the relationship between missing and observed values with other variables.
-
-```{r}
-#| label: fig-missing-pattern
-#| eval: false
-#| fig-cap: Patterns of missing values
-
-anes_2020[['clean']] |>
-    mutate(`White` = factor(`White`, labels = c('N-W', 'W')),
-            `PID` = factor(`PID`, labels = c('Dem', 'Ind', 'Rep')),
-            `Vote` = factor(`Vote`, labels = c('Rep', 'Dem')),
-            `Female` = factor(`Female`, labels = c('Male', 'Female')),
-            `Education` = factor(`Education`),
-            `Employment` = factor(`Employment`),
-            `Age` = `Age`) |>
-    missing_pairs(dependent = 'Vote', explanatory = c('PID', 'Female', 'White', 'Age', 'Education'), position = 'fill') + labs(Title = 'Missing Data Patterns', caption = 'Data Source: 2020 American National Election Study')
-```
-
-We do see slight differences in the mean values of the observed and missing observations. It is unclear, however, whether these differences are meaningful. To test whether these differences are meaningful, I again define Democratic vote share as the dependent variable and include the same explanatory variables: PID, Age, Education, White, and Female. I then perform a $\chi^2$ test to examine the difference between observed and unobserved values. The results of this test are included in @tbl-missing-pattern.
-
-```{r}
-#| label: tbl-missing-pattern
-#| tbl-cap: Patterns of missing values
-#| eval: false
-
-missing_pattern_table = anes_2020[['clean']] |>
-    mutate(`White` = factor(`White`, labels = c('N-W', 'W')),
-        `PID` = factor(`PID`, labels = c('Dem', 'Ind', 'Rep')),
-        `Vote` = factor(`Vote`, labels = c('Rep', 'Dem')),
-        `Female` = factor(`Female`, labels = c('Male', 'Female')),
-        `Education` = factor(`Education`),
-        `Employment` = factor(`Employment`),
-        `Age` = `Age`) |>
-    missing_compare(dependent = 'Vote', explanatory = c('PID', 'Female', 'White', 'Age', 'Education', 'Employment'))
-kbl(missing_pattern_table, row.names = FALSE, align = c('l', 'l', 'r', 'r', 'r'), booktabs = TRUE, format = 'latex')
-```
-
-The results suggest that missing values in Democratic Vote Share depend on the respondent's age, education level, and whether they identify as Non-White. This suggests that Democratic vote share, the dependent variable in our eventual statistical model, is MAR. Therefore, we should perform imputation to reduce bias. It is important to note that there are over 130 other variables in the dataset that may contribute to the missingness of Democratic vote share. We also see in @fig-fig-missing-pattern that the other variables might also be MAR. When one is considering performing imputation, one should examine these possibilities.
-
-I again choose to take three approaches to deal with the missing data. The first is likely to produce more bias as we just identified that the outcome variable is likely MAR; this is LWD. The second is to use `AMELIA II` to perform multivariate normal MI. The third is the `RF-MICE` procedure. 
-
-```{r}
-#| label: anes-imputations
-#| eval: false
-    #* AMELIA
-anes_amelia = amelia(anes_2020[['clean']], m = 10, parallel = "snow")
-saveRDS(anes_amelia, '../data/anes_amelia_imputed.RDS')
-    #* RF-MICE
-anes_rf = mice(anes_2020[['clean']], m = 10, method = 'rf')
-saveRDS(anes_rf, '../data/anes_rf_imputed.RDS')
-```
-
-```{r}
-#| label: load-anes-imputations
-#| eval: false
-anes_amelia <- readRDS('../data/anes_amelia_imputed.RDS')
-anes_rf <- readRDS('../data/anes_rf_imputed.RDS')
-```
-
-This is still a large dataset, and both imputation procedures will require patience from the researcher. Those with computational resource constraints may consider generating fewer datasets per iteration or by doing fewer iterations - though exact recommendations about how many iterations to perform vary between 3 and 10 with no concrete recommendation other than the closer you can get to doing 10, the better @buuren_goothuis-oudshoorn_2011. Here, I perform both procedures on the ANES and calculate 10 data sets.
-
-I use the `missDiag` package [see @marbach_2021_pa] to estimate the possible discrepancy between my observed data and that which I imputed. The discrepancy statistics are estimated by treating a given variable as a possible covariate balancing problem where under MCAR, one would expect that the dataset is balanced for a given variable.
-
-```{r}
-#| label: fig-anes-discrepancy-y
-#| fig-cap: Standardized mean difference of Vote
-#| eval: false
-
-smd_amelia = missDiag(original = anes_2020[['clean']], imputed = datalist2mids(anes_amelia[['imputations']]), formula = `Vote` ~.)
-smd_rf = missDiag(original = anes_2020[['clean']], imputed = anes_rf, formula = `Vote` ~.)
-
-ggplot() +
-    geom_boxplot(aes(x = 'AMELIA', y = smd_amelia$diff_adj)) +
-    geom_boxplot(aes(x = 'RF-MICE', y = smd_rf$diff_adj)) +
-    theme_minimal() +
-    labs(y = 'Standardized mean difference', caption = 'Data source: 2020 American National Election Study')
-```
-
-To examine how both procedures perform in terms of bias in statistical estimates relative to LWD and each other, I run a standard linear regression with the imputed datasets and the original dataset.
-
-The outcome of the regression model is whether the individual voted for Joe Biden in the 2020 Presidential Election. Following the classic model of vote choice discussed by @campbell_et-al_1969, I include the respondent's partisanship (coded as 1 for Democrat, 2 for Moderate, and 3 for Republicans), their age, level of education, an indicator variable for female respondents, an indicator variable for white respondents, and included a measure of occupational status. 
-
-While this is a very simple model of vote choice, this specification allows me to hold everything but the difference between the observations missing in the original data constant. From this model, as Joe Biden is a Democrat, we should expect that Democrats will be more likely to support Democrats (which would be represented, based on my coding scheme, as a negative relationship). More educated respondents will be more supportive of Joe Biden, female respondents would be more likely to report support for Joe Biden, and white respondents, holding partisanship constant, would be less likely to be supportive of Joe Biden due to the association of Trump with white grievance politics @Jardina2020b. 
-
-With the independent variables we chose, we should expect relatively low levels of bias in LWD. As we tested for possible sources of MAR, we understand that these sources are also theoretically-relevant predictors of our dependent variable that I include in my statistical model. This should help us account for the causes of missingness in our dependent variable. This means that, on balance, the procedure that comes closer to LWD is likely to be a better-performing model than the alternative if the differences are large.
-
-The results of these models are depicted in @tbl-regression.
-
-```{r}
-#| label: anes-models-block
-#| eval: false
-# Models
-    #* LWD
-lwd = lm(`Vote` ~ `PID` + `White` + `Female` + `Age` + `Education` + `Employment`, data = anes)
-    #* AMELIA
-amelia = pool(lapply(anes_amelia$imputations, function(x) lm((`Vote` ~ `PID` + `White` + `Female` + `Age` + `Education` + `Employment`, data = x))))
-    #* RF-MICE
-rf = pool(with(anes_rf_long, lm((`Vote` ~ `PID` + `White` + `Female` + `Age` + `Education` + `Employment`))))
-
-mods = list(
-    'Listwise Deletion' = lwd,
-    'AMELIA' = amelia,
-    'RF-MICE' = rf
-)
-cm = c(
-    'PID' = 'PID',
-    'White' = 'White',
-    'Female' = 'Female',
-    'Education' = 'Education',
-    'Age' = 'Age',
-    'Employment' = 'Employment',
-    '(Intercept)' = 'Constant'
-)
-gm = list(
-    list('raw' = 'nobs', 'clean' = 'N', fmt = 0),
-    list('raw' = 'nimp', 'clean' = 'Imputations', fmt = 0),
-    list('raw' = 'adj.r.squared', 'clean' = 'Adj. R$^2$', fmt = 2)
-)
-modelsummary(mods, coef_map = cm, gof_map = gm, notes = list('Data Source: 2020 American National Election Study.', 'Estimates from OLS.', 'Standard Errors in Parentheses.'), stars = c('*' = 0.05))
-```
--->
 <!--
     END OF METHODS SECTION
 -->
