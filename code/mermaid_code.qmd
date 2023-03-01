@@ -1,0 +1,12 @@
+
+```{mermaid}
+%%| label: Steps of RF-MICE procedure
+%%| fig-cap: Snap-judgement model
+%%| fig-width: 8
+%%{init: {'theme':'base', 'themeVariables':{'primaryColor':'#ffffff', 'primaryBorderColor':'#000000'}}}%%
+graph TD;
+A[Missing Data] --> B[Simple Imputation]
+B --> C[Select Variable and remove imputed values]
+C --> D[Random forest model to impute predicted values]
+D --> |Repeat for each variable| C
+```
