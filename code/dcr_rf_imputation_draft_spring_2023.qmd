@@ -77,7 +77,7 @@ Missing values are common in social science data. @king_et-al_2001 estimate that
 
 Unsurprisingly, several political scientists generate tools and learn from other fields to deal with these challenges due to the severity of the consequences for inference. There are four primary approaches that political scientists use in dealing with missing data: (1) listwise deletion or complete case analysis (LWD), (2) simple mean or median based imputation, (3) hot deck or regression-based imputation, or (4) multiple imputation (MI). Many of the most popular approaches to imputation carry assumptions that scholars have to satisfy. This manuscript aims to provide a primer to political scientists on the use of machine learning models in the Multiple Imputation with Chained Equations (`MICE`) framework - an extension of the familiar MI approach. 
 
-Machine learning with `MICE` is not a new approach. While a JSTOR search of Political Science journals reports a handful of articles that discuss this particular approach, it is certainly not widely used by political scientists nor has it recieved much accessible discussion of how it works.
+Machine learning with `MICE` is not a new approach. While a JSTOR search of Political Science journals reports a handful of articles that discuss this particular approach, it is certainly not widely used by political scientists nor has it received much accessible discussion of how it works.
 
 As the present article discusses, `MICE` allows the researcher to choose various models to aid the imputation process. Selecting a model with its underlying assumptions provides many benefits for researchers in choosing a procedure that is most appropriate for their particular circumstances. Choosing models that allow for flexibility and models that do not have a number of restrictive assumptions benefit those unsure about the exact data-generating process of the missingness. The specific emphasis in this paper on using random forest models in `MICE` (`RF-MICE`) results from the strong preference of those who use machine learning models for predictive regressions to use random forest models due to their flexibility as a result of their fully non-parametric nature and for their performance under many different, and complex, circumstances. Fields like the biomedical sciences treat missing values as out-of-sample predictions that random forest models predict; they see the purpose of imputation as aligned with a task that random forest models are optimal. As other fields use this `RF-MICE` procedure, there are implementations in STATA, R, and Python. All of which are relatively easy in terms of knowledge to code in either of these languages [@buuren_goothuis-oudshoorn_2011]. To be clear, this manuscript argues that we should not only consider using the `MICE` framework for imputation but also should consider using Random Forest models.
 
@@ -330,7 +330,7 @@ fig_z.write_image("../assets/amputed_z_dist.png")
 fig_y.write_image("../assets/amputed_y_dist.png")
 ```
 
-::: {#fig-sim-dist layout-nrow=2}
+::: {#fig-sim-dist layout-ncol=2}
 
 ![X](../assets/pop_x_dist.png)
 
@@ -343,6 +343,8 @@ fig_y.write_image("../assets/amputed_y_dist.png")
 ![Y](../assets/pop_y_dist.png)
 
 ![Y - amputed](../assets/amputed_y_dist.png)
+
+Distributions of simulated data
 :::
 <!--
 SEE HOW R DOES ON ITS OWN
