@@ -29,9 +29,19 @@ keywords:
   - Multiple imputation
   - Machine learning
 date: today
-#bibliography: "../assets/references.bib"
+bibliography: "../assets/references.bib"
 format:
-  hikmah-pdf: default
+  hikmah-pdf:
+    # Spit out in drafts directory
+    latex-output-dir: "../drafts"
+    # Use biblatex-chicago
+    biblatex-chicago: true
+    biblio-style: authordate
+    biblatexoptions: 
+      - backend=biber
+      - autolang=hyphen
+      - isbn=false
+      - uniquename=false
   #pdf:
   #  template: "../../../templates/manuscripts/apsr_template.tex"
   #  cite-method: biblatex
@@ -41,7 +51,7 @@ execute:
     echo: false
     message: false
     warning: false
-    eval: false
+    eval: true
 engine: knitr
 #params:
 #    #windows: true
@@ -158,14 +168,12 @@ import polars as pl
 import plotly.figure_factory as ff
 import plotly.io as pio
     #* user defined
-from fun import simulate, ampute, transformation, impute, create_iter_table
+from helper import simulate, ampute, transformation, impute, create_iter_table, mean_benchmarks
 # Seed
 np.random.seed(90210)
 # Database
 engine=db.connect("../data/sim_original.db")
 engine2=db.connect("../data/sim_amputed.db")
-#engine3=db.connect("../data/sim_imputed.db")
-#engine4=db.connect('../data/benchmarks.db')
 # Loop parameters
 n: int=100
 datasets: int=1000
@@ -179,17 +187,19 @@ for i in range(datasets):
     dist_color.append(i)
 ```
 
-Using the `numpy` library [@numpy], I simulate a population with $N=1000000$. The population has 5 variables with the following DGP's.
+Using the `numpy` library [@numpy], I simulate a population where $N=1000000$. The population has 5 variables with the DGP's presented in @eq-sim-dgp.
 
 $$
-a_i = Gamma(2,2)
-b_i = Binomial(1,0.6)
-x_i = 0.2 \times a_i + 0.5 \times b_i + Normal(0,1)
-z_i = 0.9 \times a_i \times b_i + Normal(0,1)
+\begin{split}
+a_i = Gamma(2,2) \\
+b_i = Binomial(1,0.6) \\
+x_i = 0.2 \times a_i + 0.5 \times b_i + Normal(0,1) \\
+z_i = 0.9 \times a_i \times b_i + Normal(0,1) \\
 y_i = 0.6 \times x_i + 0.9 \times z_i + Normal(0,1)
-$$
+\end{split}
+$$ {#eq-sim-dgp}
 
-I then use the `polars` library [@polars] to generate 1000 random samples from the population with $n = 100$ for each sample. To introduce missingness into my data, I use the `miceforest` library [@miceforest] to "ampute" 40% of the data for each of these samples with a MAR process. As one of the advantages of the `RF-MICE` procedure is to impute data generated from more complicated MAR processes, I ampute the data by constructing a logistic regression for each variable. Where the predicted value equals one, the corresponding observation is counted as missing [@miceforest]. For the reader, @fig-population-dist presents the distributions of data for the X, Z, and Y variables for my samples *before* amputation and @fig-amputed-dist presents the distribution of data fro the X, Z, and Y variables for my samples *after* amputation.
+I then use the `polars` library [@polars] to generate 1000 random samples from the population with $n = 100$ for each sample. To introduce missingness into my data, I use the `miceforest` library [@miceforest] to "ampute" 40% of the data for each of these samples with a MAR process. As one of the advantages of the `RF-MICE` procedure is to impute data generated from more complicated MAR processes, I ampute the data by constructing a logistic regression for each variable. Where the predicted value equals one, the corresponding observation is counted as missing [@miceforest]. For the reader, @fig-sim-dist presents the distributions of data for the X, Z, and Y variables for my samples *before* amputation as well as the distribution of data for the X, Z, and Y variables for my samples *after* amputation.
 
 ```{python}
 #| label: simulated-generation-block
@@ -320,18 +330,20 @@ fig_z.write_image("../assets/amputed_z_dist.png")
 fig_y.write_image("../assets/amputed_y_dist.png")
 ```
 
-![X](../assets/pop_x_dist.png){#fig-population-dist-x}
+::: {#fig-sim-dist layout-nrow=2}
 
-![Z](../assets/pop_z_dist.png){#fig-population-dist-z}
+![X](../assets/pop_x_dist.png)
 
-![Y](../assets/pop_y_dist.png){#fig-population-dist-y}
+![X - amputed](../assets/amputed_x_dist.png)
 
-![X](../assets/amputed_x_dist.png){#fig-amputed-dist-x}
+![Z](../assets/pop_z_dist.png)
 
-![Z](../assets/amputed_z_dist.png){#fig-amputed-dist-z}
+![Z - amputed](../assets/amputed_z_dist.png)
 
-![Y](../assets/amputed_y_dist.png){#fig-amputed-dist-y}
+![Y](../assets/pop_y_dist.png)
 
+![Y - amputed](../assets/amputed_y_dist.png)
+:::
 <!--
 SEE HOW R DOES ON ITS OWN
 ```{python}
@@ -373,14 +385,14 @@ box::use(
 )
 require(data.table)# for miceRanger
 # Load user defined functions
-source("fun.R")
+source("helper.R")
 # Loop parameters
 n <- 100 # size of each sample
 datasets <- 1000 # size of number of samples
 
 # Connect to databases
-engine <- dbConnect(duckdb(), dbdir = "../data/sim_original.db")
-engine2 <- dbConnect(duckdb(), dbdir = "../data/sim_amputed.db")
+engine <- dbConnect(duckdb(), dbdir = "../data/sim_original.db", read_only = TRUE)
+engine2 <- dbConnect(duckdb(), dbdir = "../data/sim_amputed.db", read_only = TRUE)
 engine3 <- dbConnect(duckdb(), dbdir = "../data/sim_imputed.db")
 engine4 <- dbConnect(duckdb(), dbdir = "../data/benchmarks.db")
 ```
@@ -412,7 +424,7 @@ for (i in 0: (datasets-1)) {
 
 ```{r}
 #| label: r-imputations
-#| eval: false
+#| eval: true
 # Interpolation
 tic.clearlog()
 tic("Interpolate")
@@ -427,19 +439,16 @@ toc(log = TRUE, quiet = TRUE)
 # LMICE
 tic("LMICE")
 lmice <- impute(package="mice", meth="norm", con = engine4)
-#lmice <- lapply(amputed, mice, c(m = 10, meth = "norm"))
 toc(log = TRUE, quiet = TRUE)
 
 # RFMICE
 tic("RFMICE")
 rfmice <- impute(package="mice", meth="rf", con = engine4)
-#rfmice <- lapply(amputed, mice, c(m = 10, meth = "rf"))
 toc(log = TRUE, quiet = TRUE)
 
 #RFRanger
 tic("RFRanger")
 rfranger <- impute(package="miceRanger", con = engine4)
-#rfranger <- lapply(amputed, miceRanger, c(m = 10, verbose = FALSE))
 toc(log = TRUE, quiet = TRUE)
 
 #Store timing info
@@ -527,6 +536,7 @@ Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s =
 #| eval: true
 # boxplots of difference between values
     #* Take the mean difference within imputed datasets
+lwd_diff = discrepancy(imputed = amputed, original = original)        
         #** Mean
 interpolate_diff = discrepancy(imputed = interpolate, original = original)
         #** Amelia
@@ -544,6 +554,7 @@ rfranger_diff = discrepancy(imputed = rfranger, original = original)
 #| eval: true
 #| fig-cap: Average discrepancy scores - X
 ggplot() +
+    geom_boxplot(aes(x = "LWD", y = mean_x), data = lwd_diff) +
     geom_boxplot(aes(x = 'Mean', y = mean_x), data = interpolate_diff) +
     geom_boxplot(aes(x = 'AMELIA', y = mean_x), data = amelia_diff) +
     geom_boxplot(aes(x = 'Linear MICE', y = mean_x), data = lmice_diff) +
@@ -557,7 +568,8 @@ ggplot() +
 #| label: fig-discrepancy-z
 #| eval: true
 #| fig-cap: Average discrepancy scores - Z
-discrep_z <- ggplot() +
+ggplot() +
+    geom_boxplot(aes(x = "LWD", y = mean_z), data = lwd_diff) +
     geom_boxplot(aes(x = 'Mean', y = mean_z), data = interpolate_diff) +
     geom_boxplot(aes(x = 'AMELIA', y = mean_z), data = amelia_diff) +
     geom_boxplot(aes(x = 'Linear MICE', y = mean_z), data = lmice_diff) +
@@ -572,6 +584,7 @@ discrep_z <- ggplot() +
 #| eval: true
 #| fig-cap: Average discrepancy scores - Y
 ggplot() +
+    geom_boxplot(aes(x = 'LWD', y = mean_y), data = lwd_diff) +
     geom_boxplot(aes(x = 'Mean', y = mean_y), data = interpolate_diff) +
     geom_boxplot(aes(x = 'AMELIA', y = mean_y), data = amelia_diff) +
     geom_boxplot(aes(x = 'Linear MICE', y = mean_y), data = lmice_diff) +
@@ -581,10 +594,24 @@ ggplot() +
     labs(x = 'Y', y = 'Average difference from complete data')
 ```
 
-Overall, we see that the procedures yield small differences between the actual and estimated values. For Y, `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_y)) ```, the Linear `MICE` procedure has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_y)) ```, the interpolation procedure has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_y)) ```, and `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_y)) ```. For X, we see that the `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_x)) ```, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_x)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_x)) ```, and AMELIA has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_x)) ```. For Z, we also see that `RF-MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_z)) ```, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_z)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_z)) ``` and `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_z)) ```. 
+Overall, we see that the procedures yield small differences between the actual and estimated values. For Y, `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_y)) ```, the Linear `MICE` procedure has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_y)) ```, the interpolation procedure has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_y)) ```, and `RF-MICE` with the `mice` package has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_y)) ``` and a mean discrepancy of ```r sprintf('%.3f', mean(rfranger_diff$mean_y)) ```. For X, we see that the `RF-MICE` with the `mice` package has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_x)) ``` and ```r sprintf('%.3f', mean(rfranger_diff$mean_x))``` with the `miceRanger` package, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_x)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_x)) ```, and AMELIA has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_x)) ```. For Z, we also see that `RF-MICE` with the `mice` package has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_z)) ``` and ```r sprintf('%.3f', mean(rfranger_diff$mean_z)) ``` with the `miceRanger` package, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_z)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_z)) ``` and `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_z)) ```. 
 
-The differences between the procedures across all three variables are similar. This may be due to the fact that the simulation and the amputation is relatively simple to what we may encounter in the real world where we expect the MAR process to be much more complicated. This demonstrates, however, that the performance of these procedures are relatively heterogenous and that, for robustness' sake, we should perform our imputation using more than one tool. Speaking directly to the `RF-MICE` procedure, we see that it performs well for a dichotomous (one-hot encoded) outcome but performs less well than `AMELIA II` in circumstances where the outcome is continuous or ordinal. In a separate simulation study, @marbach_2021_pa also demonstrates similar differences in performance between `AMELIA II` and `RF-MICE` where the MAR procedure does not include an interaction term.^[When the MAR process includes an interaction term, `RF-MICE` tends to underperform relative to `AMELIA II`.]
+```{python}
+#| echo: false
+interpolate_benchmark = mean_benchmarks(procedure="inter")
+amelia_benchmark = mean_benchmarks(procedure="amelia")
+lmice_benchmark = mean_benchmarks(procedure="lmice")
+rfmice_benchmark = mean_benchmarks(procedure="rfmice")
+rfranger_benchmark = mean_benchmarks(procedure="rfranger")
 
+from IPython.display import display, Markdown
+display(Markdown(f"""
+Turning to the computational performance of each procedure, interpolation with the `mice` package [@mice] took an average of {interpolate_benchmark.select("mean_seconds")[0,0]} seconds; AMELIA II [@amelia] took an average of {amelia_benchmark.select("mean_seconds")[0,0]} seconds; linear `mice` took an average of {lmice_benchmark.select("mean_seconds")[0,0]} seconds; `RF-MICE` with the `mice` package [@mice] took an average of {rfmice_benchmark.select("mean_seconds")[0,0]} seconds; and `RF-MICE` with the `miceRanger` package [@rfRanger] took an average of {rfranger_benchmark.select("mean_seconds")[0,0]}.
+"""
+))
+```
+```{r}
+#| label: load-benchmark-data
 
 <!--
     END OF METHODS SECTION

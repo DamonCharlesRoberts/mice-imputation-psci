@@ -17,10 +17,11 @@ contributes:
       geometry:
         - top=10pc     # 10p0
         - bottom=10pc  # 10p0
-        - left=11pc    # 11p0
-        - right=11pc   # 11p0
+        - left=8pc    # 11p0
+        - right=8pc   # 11p0
         - heightrounded
-      
+      # Line spacing
+      linestretch: 2
       # Citations and links
       colorlinks: true
       linkcolor: DarkSlateBlue
