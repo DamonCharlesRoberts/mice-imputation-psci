@@ -610,9 +610,6 @@ Turning to the computational performance of each procedure, interpolation with t
 """
 ))
 ```
-```{r}
-#| label: load-benchmark-data
-
 <!--
     END OF METHODS SECTION
 -->
