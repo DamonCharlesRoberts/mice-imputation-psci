@@ -1,8 +1,8 @@
 
 ```{mermaid}
-%%| label: Steps of RF-MICE procedure
-%%| fig-cap: Snap-judgement model
-%%| fig-width: 8
+%%| label: fig-process
+%%| fig-cap: Steps of RF-MICE procedure
+%%| fig-width: 5
 %%{init: {'theme':'base', 'themeVariables':{'primaryColor':'#ffffff', 'primaryBorderColor':'#000000'}}}%%
 graph TD;
 A[Missing Data] --> B[Simple Imputation]

@@ -33,7 +33,7 @@ bibliography: "../assets/references.bib"
 format:
   hikmah-pdf:
     # Spit out in drafts directory
-    latex-output-dir: "../drafts"
+    latex-output-dir: "../drafts/"
     # Use biblatex-chicago
     biblatex-chicago: true
     biblio-style: authordate
@@ -99,7 +99,19 @@ Missing data arise in different forms. Researchers describe missing data in thre
     
 At the time of writing, @king_et-al_2001 estimated that 94% of political scientists use LWD to deal with missing data. In short, LWD does not seek to impute missing values. Instead, if the DV or any of the covariates in a regression model for a given observation are missing, the researcher does not include that observation in the analysis. Traditionally, scholars argue that LWD performs best (in terms of reducing the resulting bias in the researcher's subsequent regression models) when the data are MCAR. 
 
-If the data are MAR or MNAR, deleting observations with missing data introduces bias in one's regression estimates through a failure to account for correlation between the independent variable(s) and the error [@king_et-al_2001, @weisberg_2005, @schunk_2008, @azur_et-al_2011]. Furthermore, it has the potential to decrease statistical power. A meta-analysis of comparative and international political economy papers that use LWD demonstrates that political scientists have much, upwards of 50%, more Type I error - an incorrect rejection of the null hypothesis - than we would expect as a result of how we implement LWD [@lall_2016]. 
+If the data are MAR or MNAR, deleting observations with missing data introduces bias in one's regression estimates through a failure to account for correlation between the independent variable(s) and the error [@king_et-al_2001, @weisberg_2005, @schunk_2008, @azur_et-al_2011]. Furthermore, it has the potential to decrease statistical power. A meta-analysis of comparative and international political economy papers that use LWD demonstrates that political scientists have much, upwards of 50%, more Type I error - an incorrect rejection of the null hypothesis - than we would expect as a result of how we implement LWD [@lall_2016]. To visualize this, we can draw a directed acyclic graph; @fig-bias
+
+```{mermaid}
+%%| label: fig-bias
+%%| fig-cap: MAR data as confound
+%%| fig-width: 5
+%%{init: {'theme':'base', 'themeVariables':{'primaryColor':'#ffffff', 'primaryBorderColor':'#000000'}}}%%
+
+graph LR;
+    a[X<sub>m</sub>] --> b[Y]
+    c[X<sub>c</sub>] --> a
+    d[M] --> a
+```
 
 Others push against this claim and instead argue that LWD does not inherently generate bias for non-MCAR data but that researchers neglect to control for the cause of MAR or MNAR [@arel-bundock_pelc_2018]. This is still dependent on the researcher's grasp of theory and ability to identify the DGP leading to the missingness. Though the onus is on the researcher to do this, it is often a relatively high standard given the complexity to which social phenomena relate and the tendency for our datasets to be highly-dimensional. Furthermore, this also increases the number of parameters one must include in their statistical models - which runs the risk of increasing collinearity [@schrodt_2014_jorp].
 
@@ -203,7 +215,7 @@ I then use the `polars` library [@polars] to generate 1000 random samples from t
 
 ```{python}
 #| label: simulated-generation-block
-
+#| eval: false
 # Create 1000 datasets and store it in a list
 pop_data_frame, sim = simulate(num_obs = n, samples = datasets)
 
@@ -211,14 +223,11 @@ pop_data_frame, sim = simulate(num_obs = n, samples = datasets)
 for i in range(datasets):
     data_frame = sim[i]
     create_iter_table(data_frame = data_frame, name_append = "original", i = i, engine = engine)
-
-# Once done, close the connection to the database
-engine.close()
 ```
 
 ```{python}
 #| label: population_distributions
-
+#| eval: false
 # take the simulated dataframes and produce three dataframes for each x, y, and z variable
 x_list, z_list, y_list = transformation(
     data_frames = sim,
@@ -267,21 +276,18 @@ fig_y.write_image("../assets/pop_y_dist.png")
 
 ```{python}
 #| label: amputation-block
-
+#| eval: false
 # Take each of the dataframes in the sim object, ampute them, and return a list object containing all of the dataframes
 amputed = list(map(lambda x: ampute(x, perc = 0.4, random_state = 90210), sim))
 # Store results in database
 for i in range(datasets):
     data_frame = amputed[i]
     create_iter_table(data_frame = data_frame, name_append = "amputed", engine = engine2, i = i)
-
-# Close connection to database   
-engine2.close()
 ```
 
 ```{python}
 #| label: datasets-with-missingness
-
+#| eval: false
 # take the amputed dataframes and produce three dataframes for each x, y, and z variable
 x_list, z_list, y_list = transformation(
     data_frames = amputed,
@@ -328,6 +334,12 @@ fig_y.update_layout(showlegend=False)
 fig_x.write_image("../assets/amputed_x_dist.png")
 fig_z.write_image("../assets/amputed_z_dist.png")
 fig_y.write_image("../assets/amputed_y_dist.png")
+```
+
+```{python}
+#| label: close-db-connections
+engine.close()  
+engine2.close()
 ```
 
 ::: {#fig-sim-dist layout-ncol=2}
@@ -409,7 +421,6 @@ for (i in 0: (datasets-1)) {
     original_table <- paste0('original_', as.character(i), sep="")
     original[[original_table]] <- dbGetQuery(engine, paste0('SELECT * FROM ', original_table, sep=""))
 }
-
 for (i in 0: (datasets-1)) {
     amputed_table <- paste0('amputed_', as.character(i), sep="")
     df <- dbGetQuery(engine2, paste0('SELECT * FROM ', amputed_table, sep=""))
@@ -426,7 +437,7 @@ for (i in 0: (datasets-1)) {
 
 ```{r}
 #| label: r-imputations
-#| eval: true
+#| eval: false
 # Interpolation
 tic.clearlog()
 tic("Interpolate")
@@ -457,7 +468,7 @@ toc(log = TRUE, quiet = TRUE)
 log <- tictoc::tic.log(format = TRUE) |>
     stringr::str_split( ": ", simplify = TRUE) |>
     data.frame()
-log$X2<-as.double(gsub("[secelapsed]","",as.character(log$X2)))
+log$X2 <- as.double(gsub("[secelapsed]","",as.character(log$X2)))
 setnames(log, c("procedure","seconds"))
 dbWriteTable(engine4, "benchmark", log, overwrite = TRUE)
 
@@ -505,25 +516,21 @@ for (i in 1: datasets) {
     df <- dbGetQuery(engine3, paste0('SELECT * FROM ', mean_table, sep=""))
     interpolate[[mean_table]] <- df
 }
-
 for (i in 1: datasets) {
     amelia_table <- paste0('amelia_', as.character(i), sep="")
     df <- dbGetQuery(engine3, paste0('SELECT * FROM ', amelia_table, sep=""))
     amelia[[amelia_table]] <- df
 }
-
 for (i in 1: datasets) {
     lmice_table <- paste0('lmice_', as.character(i), sep="")
     df <- dbGetQuery(engine3, paste0('SELECT * FROM ', lmice_table, sep=""))
     lmice[[lmice_table]] <- df
 }
-
 for (i in 1: datasets) {
     rfmice_table <- paste0('rfmice_', as.character(i), sep="")
     df <- dbGetQuery(engine3, paste0('SELECT * FROM ', rfmice_table, sep=""))
     rfmice[[rfmice_table]] <- df
 }
-
 for (i in 1: datasets) {
     rfranger_table <- paste0('rfranger_', as.character(i), sep="")
     df <- dbGetQuery(engine3, paste0('SELECT * FROM ', rfranger_table, sep=""))
@@ -607,10 +614,21 @@ rfmice_benchmark = mean_benchmarks(procedure="rfmice")
 rfranger_benchmark = mean_benchmarks(procedure="rfranger")
 
 from IPython.display import display, Markdown
+
 display(Markdown(f"""
 Turning to the computational performance of each procedure, interpolation with the `mice` package [@mice] took an average of {interpolate_benchmark.select("mean_seconds")[0,0]} seconds; AMELIA II [@amelia] took an average of {amelia_benchmark.select("mean_seconds")[0,0]} seconds; linear `mice` took an average of {lmice_benchmark.select("mean_seconds")[0,0]} seconds; `RF-MICE` with the `mice` package [@mice] took an average of {rfmice_benchmark.select("mean_seconds")[0,0]} seconds; and `RF-MICE` with the `miceRanger` package [@rfRanger] took an average of {rfranger_benchmark.select("mean_seconds")[0,0]}.
 """
 ))
+```
+
+Though it is not a novel claim, I argue that in situations where we have missingness due to a `MAR` pattern, our regression models suffer from bias due to the systematic process generating that missingness. What I have argued so far is that we should consider using `RF-MICE` as it is, relative to other `MI` tools, a flexible tool that may be able to model a number of `MAR` processes which would help with reducing bias in our regression models. To examine this claim, I take the amputed and imputed datasets (10) and use Rubin's rule to pool across the regression models performed on each imputed dataset. I do this for each sample. In total, I fit $`m` \times `s` $ -- $10 \times 1000$ regressions where I pool across `m` to produce a single set of statistics for each `s`. I calculate the discrepancy of the statistics for `X` and `Z` -- the variables directly contributing to the DGP of `Y` -- from their parameters. I then present a boxplot that demonstrates the differences in levels of bias between `LWD`, `Amelia`, Linear `MICE`, and `RF-MICE` across my samples.
+
+```{r}
+#| label: regressions
+
+for(i in range(datasets)){
+    
+}
 ```
 <!--
     END OF METHODS SECTION
