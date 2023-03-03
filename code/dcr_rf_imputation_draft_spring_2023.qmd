@@ -396,7 +396,11 @@ box::use(
     dplyr = dplyr[select, filter, bind_rows],
     tibble = tibble[tibble],
     ggplot2 = ggplot2[ggplot, geom_density, aes, theme_minimal, labs, geom_boxplot, ggsave],
+    rstan = rstan[...]
 )
+# rstan options
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
 require(data.table)# for miceRanger
 # Load user defined functions
 source("helper.R")
@@ -626,9 +630,30 @@ Though it is not a novel claim, I argue that in situations where we have missing
 ```{r}
 #| label: regressions
 
+# Compiled stan model
+compiled <- stan_model('ols.stan', model_name = "OLS")
+
+# Store model results
+lwd <- list()
+amelia_models <- list()
+lmice_models <- list()
+rf_mice_models <- list()
+rf_ranger_models <- list()
+
+# Fit models
 for(i in range(datasets)){
-    
+    X <- list()
+    Z <- list()
+    amputed_list <- list(
+        N = nrow(amputed[[i]]),
+        x = complete.cases(amputed[[i]]$X),
+        z = complete.cases(amputed[[i]]$Z),
+        y = complete.cases(amputed[[i]]$Y)
+    )
+    stanfit <- sampling(compiled, amputed_list)
+    lwd[[i]] <- as.data.frame(stanfit)
 }
+
 ```
 <!--
     END OF METHODS SECTION
