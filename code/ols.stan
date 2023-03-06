@@ -1,5 +1,4 @@
 // stan model
-
 data {
     int<lower=0> N; //observations
     vector[N] x; // for each observation, there is variable x

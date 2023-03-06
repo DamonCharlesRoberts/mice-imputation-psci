@@ -381,7 +381,8 @@ When producing the imputed datasets, I use the `tictoc` package to record the am
 
 ```{r}
 #| label: simulation-r-setup-block
-#| eval: true
+#| eval: true'
+setwd("./code/")
 # Set seed  
 set.seed(90210)
 # Modularly load required functions
@@ -418,18 +419,18 @@ engine4 <- dbConnect(duckdb(), dbdir = "../data/benchmarks.db")
 ```{r}
 #| label: load-simulated-data-r
 #| eval: true
-original <- list()
-amputed <- list()
+#original <- list()
+#amputed <- list()
 
-for (i in 0: (datasets-1)) {
-    original_table <- paste0('original_', as.character(i), sep="")
-    original[[original_table]] <- dbGetQuery(engine, paste0('SELECT * FROM ', original_table, sep=""))
-}
-for (i in 0: (datasets-1)) {
-    amputed_table <- paste0('amputed_', as.character(i), sep="")
-    df <- dbGetQuery(engine2, paste0('SELECT * FROM ', amputed_table, sep=""))
-    amputed[[amputed_table]] <- df
-}
+#for (i in 0: (datasets-1)) {
+#    original_table <- paste0('original_', as.character(i), sep="")
+#    original[[original_table]] <- dbGetQuery(engine, paste0('SELECT * FROM ', original_table, sep=""))
+#}
+#for (i in 0: (datasets-1)) {
+#    amputed_table <- paste0('amputed_', as.character(i), sep="")
+#    df <- dbGetQuery(engine2, paste0('SELECT * FROM ', amputed_table, sep=""))
+#    amputed[[amputed_table]] <- df
+#}
 ```
 
 <!--
@@ -504,62 +505,23 @@ for (i in 1: datasets) {
         - Change `eval:true` to `eval:false` in the following block (simulate4d-imputation-load) if fully reproducing the manuscript
         - leave simulated-imputation-load block to `eval:true` if not re-running simulations
 -->
-```{r}
-#| label: simulated-imputation-load
-#| eval: true
-# Create empty list elements
-interpolate <- list()
-amelia <- list()
-lmice <- list()
-rfmice <- list()
-rfranger <- list()
-
-# Grab the stored imputed data and put each dataframe in list
-for (i in 1: datasets) {
-    mean_table <- paste0('mean_', as.character(i), sep="")
-    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', mean_table, sep=""))
-    interpolate[[mean_table]] <- df
-}
-for (i in 1: datasets) {
-    amelia_table <- paste0('amelia_', as.character(i), sep="")
-    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', amelia_table, sep=""))
-    amelia[[amelia_table]] <- df
-}
-for (i in 1: datasets) {
-    lmice_table <- paste0('lmice_', as.character(i), sep="")
-    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', lmice_table, sep=""))
-    lmice[[lmice_table]] <- df
-}
-for (i in 1: datasets) {
-    rfmice_table <- paste0('rfmice_', as.character(i), sep="")
-    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', rfmice_table, sep=""))
-    rfmice[[rfmice_table]] <- df
-}
-for (i in 1: datasets) {
-    rfranger_table <- paste0('rfranger_', as.character(i), sep="")
-    df <- dbGetQuery(engine3, paste0('SELECT * FROM ', rfranger_table, sep=""))
-    rfranger[[rfranger_table]] <- df
-}
-```
 
 Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s = 1000$. I have a total of $s \times m$ datasets. For each s dataset, I took the difference of each m dataset from the complete dataset and took the average of these differences to give me a mean score of the discrepancy for each s dataset. @fig-discrepancy represents these mean discrepancy scores for the three variables that were originally imputed.
 
 ```{r}
 #| label: calculating average discrepancies
 #| eval: true
-# boxplots of difference between values
-    #* Take the mean difference within imputed datasets
-lwd_diff = discrepancy(imputed = amputed, original = original)        
+# boxplots of difference between values 
         #** Mean
-interpolate_diff = discrepancy(imputed = interpolate, original = original)
+interpolate_diff <- discrepancy(imputed = "interpolate")
         #** Amelia
-amelia_diff = discrepancy(imputed = amelia, original = original)
+amelia_diff <- discrepancy(imputed = "amelia")
         #** LMice
-lmice_diff = discrepancy(imputed = lmice, original = original)
+lmice_diff <- discrepancy(imputed = "lmice")
         #** RFMice
-rfmice_diff = discrepancy(imputed = rfmice, original = original)
+rfmice_diff <- discrepancy(imputed = "rfmice")
         #** RFRanger
-rfranger_diff = discrepancy(imputed = rfranger, original = original)
+rfranger_diff <- discrepancy(imputed = "rfranger")
 ```
 
 ```{r}
@@ -567,7 +529,6 @@ rfranger_diff = discrepancy(imputed = rfranger, original = original)
 #| eval: true
 #| fig-cap: Average discrepancy scores - X
 ggplot() +
-    geom_boxplot(aes(x = "LWD", y = mean_x), data = lwd_diff) +
     geom_boxplot(aes(x = 'Mean', y = mean_x), data = interpolate_diff) +
     geom_boxplot(aes(x = 'AMELIA', y = mean_x), data = amelia_diff) +
     geom_boxplot(aes(x = 'Linear MICE', y = mean_x), data = lmice_diff) +
@@ -582,7 +543,6 @@ ggplot() +
 #| eval: true
 #| fig-cap: Average discrepancy scores - Z
 ggplot() +
-    geom_boxplot(aes(x = "LWD", y = mean_z), data = lwd_diff) +
     geom_boxplot(aes(x = 'Mean', y = mean_z), data = interpolate_diff) +
     geom_boxplot(aes(x = 'AMELIA', y = mean_z), data = amelia_diff) +
     geom_boxplot(aes(x = 'Linear MICE', y = mean_z), data = lmice_diff) +
@@ -597,7 +557,6 @@ ggplot() +
 #| eval: true
 #| fig-cap: Average discrepancy scores - Y
 ggplot() +
-    geom_boxplot(aes(x = 'LWD', y = mean_y), data = lwd_diff) +
     geom_boxplot(aes(x = 'Mean', y = mean_y), data = interpolate_diff) +
     geom_boxplot(aes(x = 'AMELIA', y = mean_y), data = amelia_diff) +
     geom_boxplot(aes(x = 'Linear MICE', y = mean_y), data = lmice_diff) +
@@ -625,36 +584,38 @@ Turning to the computational performance of each procedure, interpolation with t
 ))
 ```
 
-Though it is not a novel claim, I argue that in situations where we have missingness due to a `MAR` pattern, our regression models suffer from bias due to the systematic process generating that missingness. What I have argued so far is that we should consider using `RF-MICE` as it is, relative to other `MI` tools, a flexible tool that may be able to model a number of `MAR` processes which would help with reducing bias in our regression models. To examine this claim, I take the amputed and imputed datasets (10) and use Rubin's rule to pool across the regression models performed on each imputed dataset. I do this for each sample. In total, I fit $`m` \times `s` $ -- $10 \times 1000$ regressions where I pool across `m` to produce a single set of statistics for each `s`. I calculate the discrepancy of the statistics for `X` and `Z` -- the variables directly contributing to the DGP of `Y` -- from their parameters. I then present a boxplot that demonstrates the differences in levels of bias between `LWD`, `Amelia`, Linear `MICE`, and `RF-MICE` across my samples.
+Though it is not a novel claim, I argue that in situations where we have missingness due to a `MAR` pattern, our regression models suffer from bias due to the systematic process generating that missingness. What I have argued so far is that we should consider using `RF-MICE` as it is, relative to other `MI` tools, a flexible tool that may be able to model a number of `MAR` processes which would help with reducing bias in our regression models. To examine this claim, I take the amputed and imputed datasets (10) and use Rubin's rule to pool across the regression models performed on each imputed dataset. I do this for each sample. In total, I fit $`m` \times `s` $ -- $10 \times 1000$ regressions where I pool across `m` to produce a single set of statistics for each `s`. I calculate the discrepancy of the statistics for `X` and `Z` -- the variables directly contributing to the DGP of `Y` -- from their parameters. I then present a boxplot that demonstrates the differences in levels of bias between `LWD`, `Amelia`, Linear `MICE`, and `RF-MICE` across my samples. The specification for the regression is depicted in @eq-regression. 
+
+$$
+\begin{split}
+    y_i ~ Normal(\mu_i, \sigma) \\
+    \mu_i = \alpha + \beta_{1}(x_i - \bar{x}) + \beta_{2}(z_i - \bar{z})
+    \alpha = Uniform(-\infty, \infty)
+    \beta_1 = Uniform(-\infty, \infty)
+    \beta_2 = Uniform(-\infty, \infty)
+    \sigma = Uniform(0, \infty)
+\end{split}
+$$
+
+For readers not familiar with this notation, @eq-regression essentially describes the familiar OLS regression. I fit a model where $y_i$ is explained by my likelihood function, $\mu_i$ and I assume that my parameters in my model can take any real number value. That is, I am not imposing a contraint with my defined priors about how large or small my estimates of $\beta_1$, $\beta_2$, and $\alpha$ can be. $\sigma$ depicts the variance, which I constrain to be positive.
 
 ```{r}
-#| label: regressions
-
-# Compiled stan model
-compiled <- stan_model('ols.stan', model_name = "OLS")
-
-# Store model results
-lwd <- list()
-amelia_models <- list()
-lmice_models <- list()
-rf_mice_models <- list()
-rf_ranger_models <- list()
-
-# Fit models
-for(i in range(datasets)){
-    X <- list()
-    Z <- list()
-    amputed_list <- list(
-        N = nrow(amputed[[i]]),
-        x = complete.cases(amputed[[i]]$X),
-        z = complete.cases(amputed[[i]]$Z),
-        y = complete.cases(amputed[[i]]$Y)
-    )
-    stanfit <- sampling(compiled, amputed_list)
-    lwd[[i]] <- as.data.frame(stanfit)
-}
-
+#| label: regression-discrepancies
+# LWD
+lwd_reg_diff <- discrepancy(procedure = "amputed", model = TRUE)   
+# Mean
+interpolate_reg_diff <- discrepancy(procedure = "interpolate", model = TRUE)
+# Amelia
+amelia_reg_diff <- discrepancy(procedure = "amelia", model = TRUE)
+# LMice
+lmice_reg_diff <- discrepancy(procedure = "lmice", model = TRUE)
+# RFMice
+rfmice_reg_diff <- discrepancy(procedure = "rfmice", model = TRUE)
+# RFRanger
+rfranger_reg_diff <- discrepancy(procedure = "rfranger", model = TRUE)
 ```
+
+
 <!--
     END OF METHODS SECTION
 -->

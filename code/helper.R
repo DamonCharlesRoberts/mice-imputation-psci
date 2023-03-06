@@ -60,7 +60,7 @@ impute <- function(
 }
 
 # Discrepancy
-discrepancy <- function(imputed = NULL, original = NULL) {
+discrepancy <- function(procedure, model = FALSE) {
     #' discrepancy
     #'
     #' Description:
@@ -71,30 +71,99 @@ discrepancy <- function(imputed = NULL, original = NULL) {
     #' ----
     #' imputed(list):
     #'  - List of imputed data.frames
-    #' original(list):
-    #'  - List of original data.frames
+    #' model(bool):
+    #'  - Is this to calculate the discrepancy between model estimates or raw data?
     #'
     #' Returns:
     #' ----
     #' data.frame of average discrepancies for each dataset
+        # Create empty objects
+        combined_x <- NULL
+        combined_y <- NULL
+        combined_z <- NULL
+        # Perform all of the following for each random sample
+        for (d in 1: datasets) { # nolint
+            #* Define queries to the database
+            if (procedure == "interpolate"){
+                df_query <- paste0("mean_", as.character(d), sep = "")
+            } else if (procedure == "amelia") {
+                df_query <- paste0("amelia_", as.character(d), sep = "")
+            } else if (procedure == "lmice") {
+                df_query <- paste0("lmice_", as.character(d),
+                sep = "")
+            } else if (procedure == "rfmice") {
+                df_query <- paste0("rfmice_", as.character(d), sep = "")
+            } else if (procedure == "rfranger") {
+                df_query <- paste0("rfranger_", as.character(d), sep = "")
+            } else {
+                df_query <- paste0("amputed_", as.character(d-1), sep = "")
+            }
+            #* Define an alternative engine
+            if (procedure == "amputed") {
+                alt_engine <- engine2
+            } else {
+                alt_engine <- engine3
+            }
+            #* If I'm not looking at discrepancies for the model and just the raw data...
+            if (model == FALSE) {
+                #** Dataframe query
+                    #*** For imputed or amputed data
+                df <- dbGetQuery(
+                    alt_engine, paste0("SELECT * FROM ", df_query, sep = ""))
+                    #*** For complete sample data
+                original_query <- paste0("original_", as.character(d-1), sep = "")
+                original <- dbGetQuery(engine, paste0("SELECT * FROM ", original_query, sep = ""))
+                #** Take the mean difference between original and imputed for each sample
+                mean_x <- mean(df$X - original$X)
+                mean_y <- mean(df$Y - original$Y)
+                mean_z <- mean(df$Z - original$Z)
+            #* If I am looking at the discrepancy for the model, though...
+            } else if (model == TRUE) {
+                #** compile the stan model 
+                compiled <- stan_model("ols.stan", model_name = "OLS")
+                #** define an empty data.frame to store the mean of the posterior for each sample
+                sample_mean <- NULL
+                #** for each imputed dataset for each sample, do the following
+                for (j in seq(10, 110, by = 10)){
+                    if (procedure == "amputed"){
+                        query <- paste0('SELECT * FROM ', df_query, sep = "")
+                    } else {
+                    #*** grab the data.frame
+                        query <- paste0('SELECT * FROM ', df_query, ' WHERE ".id" = ', as.character(j), sep = "")
+                    }
+                    df <- dbGetQuery(alt_engine, query)
+                    #*** convert the data.frame into a list
+                    df_complete <- df[complete.cases(df),]
+                    df_list <- list(
+                        N = nrow(df_complete),
+                        x = df_complete$X,
+                        z = df_complete$Z,
+                        y = df_complete$Y
+                    )
+                    #*** fit the stan model with the data from above
+                    fitted <- sampling(compiled, df_list, chains = 1, iter = 2000)
+                    #*** take the mean of the posterior estimates for each col
+                    mean_posterior <- colMeans(as.data.frame(fitted))
+                    #*** for each sample, add these mean_posteriors to a dataframe
+                    sample_mean <- rbind(data.frame(sample_mean), data.frame(mean_posterior))
+                }
+                #** take the difference between the posterior sample means and actual beta coefficeints
+                mean_x <- mean(sample_mean$x - 0.6)
+                mean_z <- mean(sample_mean$z - 0.9)
+            }
+                #** store the discrepancies in a data.frame
+            if (model == FALSE){
+                combined_x <- bind_rows(data.frame(combined_x), data.frame(mean_x)) # nolint
+                combined_z <- bind_rows(data.frame(combined_z), data.frame(mean_z)) # nolint
+                combined_y <- bind_rows(data.frame(combined_y), data.frame(mean_y))
+                discrepancy_df <- cbind(combined_x, combined_z, combined_y)
+            } else {
+                combined_x <- bind_rows(data.frame(combined_x), data.frame(mean_x)) # nolint
+                combined_z <- bind_rows(data.frame(combined_z), data.frame(mean_z)) # nolint
+                discrepancy_df <- cbind(combined_x, combined_z)
+            }
 
-    # Create empty objects
-    combined_x <- NULL
-    combined_y <- NULL
-    combined_z <- NULL
-    # Calculate mean discrepancy and add this to data.frame
-    for (d in 1: datasets) { # nolint # nolint
-        mean_x <- mean(imputed[[d]]$X - original[[d]]$X)
-        mean_y <- mean(imputed[[d]]$Y - original[[d]]$Y)
-        mean_z <- mean(imputed[[d]]$Z - original[[d]]$Z)
-        combined_x <- bind_rows(data.frame(combined_x), data.frame(mean_x)) # nolint
-        combined_y <- bind_rows(data.frame(combined_y), data.frame(mean_y)) # nolint
-        combined_z <- bind_rows(data.frame(combined_z), data.frame(mean_z)) # nolint
-        mean_diff_df <- cbind(
-            "X" = combined_x,
-            "Y" = combined_y,
-            "Z" = combined_z
-        )
+        }
+        #* return the dataframe of discrepancies
+        return(discrepancy_df)
     }
-    return(mean_diff_df)
-}
