@@ -69,7 +69,7 @@ discrepancy <- function(procedure, model = FALSE) {
     #'
     #' Parameters:
     #' ----
-    #' imputed(list):
+    #' procedure(list):
     #'  - List of imputed data.frames
     #' model(bool):
     #'  - Is this to calculate the discrepancy between model estimates or raw data?
@@ -119,16 +119,16 @@ discrepancy <- function(procedure, model = FALSE) {
                 mean_z <- mean(df$Z - original$Z)
             #* If I am looking at the discrepancy for the model, though...
             } else if (model == TRUE) {
-                #** compile the stan model 
-                compiled <- stan_model("ols.stan", model_name = "OLS")
                 #** define an empty data.frame to store the mean of the posterior for each sample
                 sample_mean <- NULL
-                #** for each imputed dataset for each sample, do the following
-                for (j in seq(10, 110, by = 10)){
+                #** for each imputed/amputed dataset for each sample, do the following
+                for (j in 1: 10){
                     if (procedure == "amputed"){
                         query <- paste0('SELECT * FROM ', df_query, sep = "")
-                    } else {
+                    } else if (procedure == "rfranger") {
                     #*** grab the data.frame
+                        query <- paste0("SELECT * FROM ", df_query, " WHERE dataset = 'Dataset_", as.character(j), "'", sep = "")
+                    } else {
                         query <- paste0('SELECT * FROM ', df_query, ' WHERE ".id" = ', as.character(j), sep = "")
                     }
                     df <- dbGetQuery(alt_engine, query)
@@ -140,16 +140,23 @@ discrepancy <- function(procedure, model = FALSE) {
                         z = df_complete$Z,
                         y = df_complete$Y
                     )
-                    #*** fit the stan model with the data from above
-                    fitted <- sampling(compiled, df_list, chains = 1, iter = 2000)
+                    ##*** fit the stan model with the data from above
+                    #fitted <- lm(
+                    #    formula = Y ~ X + Z,
+                    #    data = df
+                    #)
+                    #fitted_df <- data.frame(X = fitted$coefficients[[2]], Z = fitted$coefficients[[3]])
+                    fitted <- sampling(compiled, df_list, chains = 1, iter = 100)
+                    #fitted %<-% brms_multiple(formula = Y ~ X + Z, data = df)
                     #*** take the mean of the posterior estimates for each col
                     mean_posterior <- colMeans(as.data.frame(fitted))
-                    #*** for each sample, add these mean_posteriors to a dataframe
-                    sample_mean <- rbind(data.frame(sample_mean), data.frame(mean_posterior))
+                    ##*** for each sample, add these mean_posteriors to a dataframe
+                    #sample_mean <- rbind(data.frame(sample_mean), fitted_df)
+                    sample_mean <- rbind(data.frame(sample_mean), as.data.frame.list(mean_posterior))
                 }
-                #** take the difference between the posterior sample means and actual beta coefficeints
-                mean_x <- mean(sample_mean$x - 0.6)
-                mean_z <- mean(sample_mean$z - 0.9)
+                #** take the difference between the posterior sample means and actual beta coefficients
+                mean_x <- mean(sample_mean$beta_1 - 0.6)
+                mean_z <- mean(sample_mean$beta_2 - 0.9)
             }
                 #** store the discrepancies in a data.frame
             if (model == FALSE){

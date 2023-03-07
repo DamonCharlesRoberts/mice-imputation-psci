@@ -52,9 +52,9 @@ execute:
     message: false
     warning: false
     eval: true
-engine: knitr
-#params:
-#    #windows: true
+params:
+    windows: false
+    reproduce: false
 ---
 {{< pagebreak >}}
 <!-- 
@@ -70,6 +70,11 @@ engine: knitr
             * After running it, interpret the results.
             * GET A DRAFT DONE
 --->
+```{python}
+#| tags: [parameters]
+
+reproduce = "false"
+```
 
 # Introduction
 
@@ -164,11 +169,8 @@ In the next section, I illustrate the use of random forest models for political 
 -->
 # Application of `MICE` with random forests
 
-## Simulated Data
-
 ```{python}
 #| label: setup-block
-#| eval: true
 # import modules
     #* from env
 from itertools import repeat
@@ -191,8 +193,9 @@ n: int=100
 datasets: int=1000
 m: int=10
 # Default template
+    #* define default template
 pio.templates.default = "plotly_white"
-
+    #* define line colors for distplots
 dist_color = []
 for i in range(datasets):
     i = "#D3D3D3"
@@ -215,131 +218,132 @@ I then use the `polars` library [@polars] to generate 1000 random samples from t
 
 ```{python}
 #| label: simulated-generation-block
-#| eval: false
-# Create 1000 datasets and store it in a list
-pop_data_frame, sim = simulate(num_obs = n, samples = datasets)
 
-# Take the original simulated datasets and store them in the database
-for i in range(datasets):
-    data_frame = sim[i]
-    create_iter_table(data_frame = data_frame, name_append = "original", i = i, engine = engine)
-```
+# Execute all of the following if params.reproduce was set to true
+if reproduce == "true":
+    # Create 1000 datasets and store it in a list
+    pop_data_frame, sim = simulate(num_obs = n, samples = datasets)
 
-```{python}
-#| label: population_distributions
-#| eval: false
-# take the simulated dataframes and produce three dataframes for each x, y, and z variable
-x_list, z_list, y_list = transformation(
-    data_frames = sim,
-    datasets = datasets
-)
+    # Take the original simulated datasets and store them in the database
+    for i in range(datasets):
+        data_frame = sim[i]
+        create_iter_table(
+            data_frame = data_frame,
+            name_append = "original",
+            i = i,
+            engine = engine
+        )
+    # take the simulated dataframes and produce three dataframes for each x, y, and z variable
+    x_list, z_list, y_list = transformation(
+        data_frames = sim,
+        datasets = datasets
+    )
 
-# convert these dataframes to pandas to work nicely with plotly
-x_list_pandas = x_list.to_pandas()
-z_list_pandas = z_list.to_pandas()
-y_list_pandas = y_list.to_pandas()
+    # convert these dataframes to pandas to work nicely with plotly
+    x_list_pandas = x_list.to_pandas()
+    z_list_pandas = z_list.to_pandas()
+    y_list_pandas = y_list.to_pandas()
 
-# Create density plots of variables across datasets
-    #* For x variable
-fig_x = ff.create_distplot(
-    [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframes
-    x_list.columns,
-    colors=dist_color, # grab the names of the dataframe columns
-    show_hist = False, # do not show the histogram
-    show_rug = False # do not show the rugplot
-)
-    #* For z variable
-fig_z = ff.create_distplot(
-    [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframes
-    z_list.columns,
-    colors=dist_color, # grab the names of the dataframe columns
-    show_hist = False, # do not show the histogram
-    show_rug = False # do not show the rugplot
-)
-    #* For y variable
-fig_y = ff.create_distplot(
-    [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframes
-    y_list.columns,
-    colors=dist_color, # grab the names of the dataframe columns
-    show_hist = False, # do not show the histogram
-    show_rug = False # do not show the rugplot
-) 
-
-fig_x.update_layout(showlegend=False)
-fig_z.update_layout(showlegend=False)
-fig_y.update_layout(showlegend=False)
-
-fig_x.write_image("../assets/pop_x_dist.png")
-fig_z.write_image("../assets/pop_z_dist.png")
-fig_y.write_image("../assets/pop_y_dist.png")
+    # Create density plots of variables across datasets
+        #* For x variable
+    fig_x = ff.create_distplot(
+        [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframes
+        x_list.columns,
+        colors=dist_color, # grab the names of the dataframe columns
+        show_hist = False, # do not show the histogram
+        show_rug = False # do not show the rugplot
+    )
+        #* For z variable
+    fig_z = ff.create_distplot(
+        [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframes
+        z_list.columns,
+        colors=dist_color, # grab the names of the dataframe columns
+        show_hist = False, # do not show the histogram
+        show_rug = False # do not show the rugplot
+    )
+        #* For y variable
+    fig_y = ff.create_distplot(
+        [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframes
+        y_list.columns,
+        colors=dist_color, # grab the names of the dataframe columns
+        show_hist = False, # do not show the histogram
+        show_rug = False # do not show the rugplot
+    ) 
+        #* remove the legends for each of these plots
+    fig_x.update_layout(showlegend=False)
+    fig_z.update_layout(showlegend=False)
+    fig_y.update_layout(showlegend=False)
+        #* store an image of each of these plots
+    fig_x.write_image("../assets/pop_x_dist.png")
+    fig_z.write_image("../assets/pop_z_dist.png")
+    fig_y.write_image("../assets/pop_y_dist.png")
 ```
 
 ```{python}
 #| label: amputation-block
-#| eval: false
-# Take each of the dataframes in the sim object, ampute them, and return a list object containing all of the dataframes
-amputed = list(map(lambda x: ampute(x, perc = 0.4, random_state = 90210), sim))
-# Store results in database
-for i in range(datasets):
-    data_frame = amputed[i]
-    create_iter_table(data_frame = data_frame, name_append = "amputed", engine = engine2, i = i)
-```
 
-```{python}
-#| label: datasets-with-missingness
-#| eval: false
-# take the amputed dataframes and produce three dataframes for each x, y, and z variable
-x_list, z_list, y_list = transformation(
-    data_frames = amputed,
-    datasets = datasets
-)
+if reproduce == "true":
+    # Take each of the dataframes in the sim object, ampute them, and return a list object containing all of the dataframes
+    amputed = list(map(lambda x: ampute(x, perc = 0.4, random_state = 90210), sim))
+    # Store results in database
+    for i in range(datasets):
+        data_frame = amputed[i]
+        create_iter_table(
+            data_frame = data_frame,
+            name_append = "amputed",
+            engine = engine2,
+            i = i
+        )
+    # take the amputed dataframes and produce three dataframes for each x, y, and z variable
+    x_list, z_list, y_list = transformation(
+        data_frames = amputed,
+        datasets = datasets
+    )
 
-# take the three dataframes, drop missing values and convert to pandas
-x_list_pandas = x_list.drop_nulls().to_pandas()
-z_list_pandas = z_list.drop_nulls().to_pandas()
-y_list_pandas = y_list.drop_nulls().to_pandas()
+    # take the three dataframes, drop missing values and convert to pandas
+    x_list_pandas = x_list.drop_nulls().to_pandas()
+    z_list_pandas = z_list.drop_nulls().to_pandas()
+    y_list_pandas = y_list.drop_nulls().to_pandas()
 
-# create density plots of the variables across datasets
-    #* for x variable
-fig_x = ff.create_distplot(
-    [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframe
-    x_list.columns,
-    colors=dist_color, # grab the column names from the dataframe
-    show_hist = False, # do not show the histogram
-    show_rug = False # do not show the rugplot
-    
-)
-    #* for z variable
-fig_z = ff.create_distplot(
-    [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframe
-    z_list.columns,
-    colors=dist_color, # grab the column names from the dataframe
-    show_hist = False, # do not show the histogram
-    show_rug = False # do not show the rugplot,
-    
-)
-    #* for y variable
-fig_y = ff.create_distplot(
-    [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframe
-    y_list.columns,
-    colors=dist_color, # grab the column names from the dataframe
-    show_hist = False, # do not show the histogram
-    show_rug = False # do not show the rugplot
-)
-
-fig_x.update_layout(showlegend=False)
-fig_z.update_layout(showlegend=False)
-fig_y.update_layout(showlegend=False)
-
-fig_x.write_image("../assets/amputed_x_dist.png")
-fig_z.write_image("../assets/amputed_z_dist.png")
-fig_y.write_image("../assets/amputed_y_dist.png")
+    # create density plots of the variables across datasets
+        #* for x variable
+    fig_x = ff.create_distplot(
+        [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframe
+        x_list.columns,
+        colors=dist_color, # grab the column names from the dataframe
+        show_hist = False, # do not show the histogram
+        show_rug = False # do not show the rugplot
+    )
+        #* for z variable
+    fig_z = ff.create_distplot(
+        [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframe
+        z_list.columns,
+        colors=dist_color, # grab the column names from the dataframe
+        show_hist = False, # do not show the histogram
+        show_rug = False # do not show the rugplot,
+    )
+        #* for y variable
+    fig_y = ff.create_distplot(
+        [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframe
+        y_list.columns,
+        colors=dist_color, # grab the column names from the dataframe
+        show_hist = False, # do not show the histogram
+        show_rug = False # do not show the rugplot
+    )
+        #* remove the lengends for these plots
+    fig_x.update_layout(showlegend=False)
+    fig_z.update_layout(showlegend=False)
+    fig_y.update_layout(showlegend=False)
+        #* store the plots as images
+    fig_x.write_image("../assets/amputed_x_dist.png")
+    fig_z.write_image("../assets/amputed_z_dist.png")
+    fig_y.write_image("../assets/amputed_y_dist.png")
 ```
 
 ```{python}
 #| label: close-db-connections
-engine.close()  
-engine2.close()
+engine.close() # close engine connection
+engine2.close() # close engine2 connection
 ```
 
 ::: {#fig-sim-dist layout-ncol=2}
@@ -358,36 +362,19 @@ engine2.close()
 
 Distributions of simulated data
 :::
-<!--
-SEE HOW R DOES ON ITS OWN
-```{python}
-#| label: python-impute
-#| eval: false
-start_time = default_timer()
-completed_df = list(map(lambda x: impute(data_frame=x, datasets=datasets), amputed))
-total_time = default_timer() - start_time
-# Store results in database
-for i in range(datasets):
-    data_frame = completed_df[i]
-    create_iter_table(data_frame = data_frame, name_append = "python_imputed", engine = engine3, i = i)
 
-# Close connection to database
-engine3.close()
-```
--->
 With these amputed datasets, I then apply some of the procedures I have discussed to impute these values. Interpolation is a quite simple procedure where I can fill in missing values by using the mean value of that particular variable for the non-missing observations. I perform this interpolation with the `mice` package [@mice] and iterate over it to provide 10 datasets. I also use the `AMELIA II` package [@honaker_et-al_2011] to perform standard MI and also store 10 datasets from the iterations. I use a standard Bayesian linear model in the `MICE` framework with the `mice` package [@mice]. Bayesian linear models with uniform distributions or a weak prior distribution are similar to the familiar Ordinary Least Squares [@gelman_et-al_2021]. As discussed before, the final procedure I use is a random forest in the `MICE` framework. I perform the `RF-MICE` procedure using the `mice` package [@mice] and an alternative package `miceRanger` [@miceRanger].
 
-When producing the imputed datasets, I use the `tictoc` package to record the amount of time each procedure takes to complete the task on the 1000 samples as a measure of computational cost. As a number of factors may affect the absolute computational costs for these procedures (e.g., hardware, whether other applications or software are running, whether one uses parallelization, etcetera), I am primarily going to focus on the relative computational costs of each procedure.
+When producing the imputed datasets, I use the `tictoc` package to record the amount of time each procedure takes to complete the task on the 1000 samples as a measure of computational cost.^[It is important to note that these benchmarks are based on a computer running Pop_OS 22.04 LTS with 32.0 GB of memory, on a Intel i7-9700K processor at 3.60GHz with 8 cores using a NVIDIA GEForce RTX 2070 graphics card.] As a number of factors may affect the absolute computational costs for these procedures (e.g., hardware, whether other applications or software are running, whether one uses parallelization, etcetera), I am primarily going to focus on the relative computational costs of each procedure.
 
 ```{r}
 #| label: simulation-r-setup-block
-#| eval: true'
-setwd("./code/")
+
 # Set seed  
 set.seed(90210)
 # Modularly load required functions
 box::use(
-    DBI = DBI[dbConnect, dbGetQuery, dbWriteTable],
+    DBI = DBI[dbConnect, dbGetQuery, dbWriteTable, dbDisconnect],
     duckdb = duckdb[duckdb], #needs to be version 0.6.1 for both R and python
     mice = mice[ampute, pool, complete, mice],
     miceRanger = miceRanger[miceRanger],
@@ -399,10 +386,13 @@ box::use(
     ggplot2 = ggplot2[ggplot, geom_density, aes, theme_minimal, labs, geom_boxplot, ggsave],
     rstan = rstan[...]
 )
+require(data.table)# for miceRanger
+
 # rstan options
+
 options(mc.cores = parallel::detectCores())
 rstan_options(auto_write = TRUE)
-require(data.table)# for miceRanger
+
 # Load user defined functions
 source("helper.R")
 # Loop parameters
@@ -410,181 +400,330 @@ n <- 100 # size of each sample
 datasets <- 1000 # size of number of samples
 
 # Connect to databases
-engine <- dbConnect(duckdb(), dbdir = "../data/sim_original.db", read_only = TRUE)
-engine2 <- dbConnect(duckdb(), dbdir = "../data/sim_amputed.db", read_only = TRUE)
-engine3 <- dbConnect(duckdb(), dbdir = "../data/sim_imputed.db")
-engine4 <- dbConnect(duckdb(), dbdir = "../data/benchmarks.db")
+engine <- dbConnect(
+    duckdb(),
+    dbdir = "../data/sim_original.db",
+    read_only = TRUE # read only mode
+)
+engine2 <- dbConnect(
+    duckdb(),
+    dbdir = "../data/sim_amputed.db",
+    read_only = TRUE # read_only mode
+)
+engine3 <- dbConnect(
+    duckdb(),
+    dbdir = "../data/sim_imputed.db"
+)
+engine4 <- dbConnect(
+    duckdb(),
+    dbdir = "../data/benchmarks.db"
+)
 ```
-
-```{r}
-#| label: load-simulated-data-r
-#| eval: true
-#original <- list()
-#amputed <- list()
-
-#for (i in 0: (datasets-1)) {
-#    original_table <- paste0('original_', as.character(i), sep="")
-#    original[[original_table]] <- dbGetQuery(engine, paste0('SELECT * FROM ', original_table, sep=""))
-#}
-#for (i in 0: (datasets-1)) {
-#    amputed_table <- paste0('amputed_', as.character(i), sep="")
-#    df <- dbGetQuery(engine2, paste0('SELECT * FROM ', amputed_table, sep=""))
-#    amputed[[amputed_table]] <- df
-#}
-```
-
-<!--
-    Notes:
-        - The following block (r-imputations) has the option `eval:false` set.
-        - Remove this option if wanting to reproduce the whole thing.
-        - Otherwise, can just access them from the database like I do in the block following (simulated-imputation-load) the r-imputations block
--->
 
 ```{r}
 #| label: r-imputations
-#| eval: false
-# Interpolation
-tic.clearlog()
-tic("Interpolate")
-interpolate <- impute(package="mice", meth="mean")
-toc(log = TRUE, quiet = TRUE)
 
-# AMELIA
-tic("Amelia")
-amelia <- impute(package="amelia", con = engine4)
-toc(log = TRUE, quiet = TRUE)
+if (params$reproduce == "true") {
+    # Interpolation
+    tic.clearlog() # clear the log for tic
+    tic("Interpolate") # initialize time counter for Interpolate procedure
+    interpolate <- impute(# perform interpolation imputation with mice package
+        package="mice",
+        meth="mean"
+    )
+    toc(# document how much time it took for this to complete
+        log = TRUE,
+        quiet = TRUE
+    )
 
-# LMICE
-tic("LMICE")
-lmice <- impute(package="mice", meth="norm", con = engine4)
-toc(log = TRUE, quiet = TRUE)
+    # AMELIA
+    tic("Amelia") # initialize time counter for amelia procedure
+    amelia <- impute( # perform amelia imputation
+        package="amelia",
+        con = engine4
+    )
+    toc( # document how much time it took for this to complete
+        log = TRUE,
+        quiet = TRUE
+    )
 
-# RFMICE
-tic("RFMICE")
-rfmice <- impute(package="mice", meth="rf", con = engine4)
-toc(log = TRUE, quiet = TRUE)
+    # LMICE
+    tic("LMICE") # initialize time counter for linear mice procedure
+    lmice <- impute( # perform lmice imputation with mice package
+        package="mice",
+        meth="norm",
+        con = engine4
+    )
+    toc( # document how much time it took for this to complete
+        log = TRUE,
+        quiet = TRUE
+    )
 
-#RFRanger
-tic("RFRanger")
-rfranger <- impute(package="miceRanger", con = engine4)
-toc(log = TRUE, quiet = TRUE)
+    # RFMICE
+    tic("RFMICE") # initialize time counter for rfmice procedure
+    rfmice <- impute(  # perform rfmice imputation with mice package
+        package="mice",
+        meth="rf",
+        con = engine4
+    )
+    toc( # document how much time it took for this to complete
+        log = TRUE,
+        quiet = TRUE
+    )
 
-#Store timing info
-log <- tictoc::tic.log(format = TRUE) |>
-    stringr::str_split( ": ", simplify = TRUE) |>
-    data.frame()
-log$X2 <- as.double(gsub("[secelapsed]","",as.character(log$X2)))
-setnames(log, c("procedure","seconds"))
-dbWriteTable(engine4, "benchmark", log, overwrite = TRUE)
+    #RFRanger
+    tic("RFRanger") # initialize time counter for rfmice procedure
+    rfranger <- impute(  # perform rfmice imputation with miceRanger package
+        package="miceRanger",
+        con = engine4
+    )
+    toc( # document how much time it took for this to complete
+        log = TRUE,
+        quiet = TRUE
+    )
 
-# Store imputed data in database
-for (i in 1: datasets) {
-    df <- interpolate[[i]]
-    dbWriteTable(engine3, paste0("mean_", as.character(i)), df, overwrite = TRUE)
-}
-for (i in 1: datasets) {
-    df <- amelia[[i]]
-    dbWriteTable(engine3, paste0("amelia_", as.character(i)), df, overwrite = TRUE)
-}
-for (i in 1: datasets) {
-    df <- lmice[[i]]
-    dbWriteTable(engine3, paste0("lmice_", as.character(i)), df,overwrite = TRUE)
-}
-for (i in 1: datasets) {
-    df <- rfmice[[i]]
-    dbWriteTable(engine3, paste0("rfmice_", as.character(i)), df,overwrite = TRUE)
-}
-for (i in 1: datasets) {
-    df <- data.frame(rfranger[[i]])
-    dbWriteTable(engine3, paste0("rfranger_", as.character(i)), df,overwrite = TRUE)
+    #Store timing info
+    log <- tictoc::tic.log(format = TRUE) |> # take the logged timing info and store it as a data.frame object
+        stringr::str_split( ": ", simplify = TRUE) |>
+        data.frame()
+    log$X2 <- as.double( # store it as an integer in the X2 column
+        gsub("[secelapsed]","",as.character(log$X2)) # remove the secelapsed prefix
+    ) 
+    setnames(  # set the column names
+        log, # of the log dataset
+        c("procedure","seconds") # to procedure and seconds
+    )
+        #* put it in a database
+    dbWriteTable(
+        engine4, # connect to the engine4 database
+        "benchmark", # name the table "benchmark"
+        log, # store the log data.frame
+        overwrite = TRUE # and if it already exists, overwrite it
+    )
+
+    # Store imputed data in database
+    for (i in 1: datasets) {
+        df <- interpolate[[i]] # take each dataframe from the interpolate list
+        dbWriteTable( # and write each to a table
+            engine3, # connect to the engine3 database
+            paste0("mean_", as.character(i)), # the name of the table should be the combo of mean_i
+            df, # should be the current df
+            overwrite = TRUE # overwrite this if the table by the current name already exists
+        )
+    }
+    for (i in 1: datasets) {
+        df <- amelia[[i]] # take each dataframe from the amelia list
+        dbWriteTable( # and write each to a table
+            engine3, # connect to the engine3 database
+            paste0("amelia_", as.character(i)), # the name of the table should be the combo of amelia_i
+            df, # should be the current df
+            overwrite = TRUE # overwrite this if the table by the current name already exists
+        )
+    }
+    for (i in 1: datasets) {
+        df <- lmice[[i]] # take each dataframe from the lmice list
+        dbWriteTable( # and write each to a table
+            engine3, # connect to the engine3 database
+            paste0("lmice_", as.character(i)), # the name of the table should be the combo of lmice_i
+            df, # should be the current df
+            overwrite = TRUE # overwrite this if the table by the current name already exists
+        )
+    }
+    for (i in 1: datasets) {
+        df <- rfmice[[i]] # take each dataframe from the rfmice list
+        dbWriteTable( # and write each to a table
+            engine3, # connect to the engine3 database
+            paste0("rfmice_", as.character(i)), # the name of the table should be the combo of rfmice_i 
+            df, # should be the current df
+            overwrite = TRUE # overwrite this if the table by the current name already exists
+        )
+    }
+    for (i in 1: datasets) {
+        df <- data.frame( # store each object from the rfranger list into a dataframe
+            rfranger[[i]]
+        ) 
+        dbWriteTable( # and write each to a table
+            engine3, # connect to the engine3 database
+            paste0("rfranger_", as.character(i)), # the name of the table should be the combo of rfranger_i
+            df, # should be the current df
+            overwrite = TRUE # overwrite this if the table by the current name already exists
+        )
+    }
 }
 ```
-
-<!--
-    Notes:
-        - Change `eval:true` to `eval:false` in the following block (simulate4d-imputation-load) if fully reproducing the manuscript
-        - leave simulated-imputation-load block to `eval:true` if not re-running simulations
--->
 
 Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s = 1000$. I have a total of $s \times m$ datasets. For each s dataset, I took the difference of each m dataset from the complete dataset and took the average of these differences to give me a mean score of the discrepancy for each s dataset. @fig-discrepancy represents these mean discrepancy scores for the three variables that were originally imputed.
 
 ```{r}
-#| label: calculating average discrepancies
-#| eval: true
-# boxplots of difference between values 
+#| label: calculating-average-discrepancies
         #** Mean
-interpolate_diff <- discrepancy(imputed = "interpolate")
+interpolate_diff <- discrepancy( # calculate the value-wise discrepancy
+    procedure = "interpolate" # for the interpolate procedure
+)
         #** Amelia
-amelia_diff <- discrepancy(imputed = "amelia")
+amelia_diff <- discrepancy( # calculate the value-wise discrepancy
+    procedure = "amelia" # for the amelia procedure
+)
         #** LMice
-lmice_diff <- discrepancy(imputed = "lmice")
+lmice_diff <- discrepancy( # calculate the value-wise discrepancy
+    procedure = "lmice" # for  the lmice procedure
+)
         #** RFMice
-rfmice_diff <- discrepancy(imputed = "rfmice")
+rfmice_diff <- discrepancy(# calculate the value-wise discrepancy
+    procedure = "rfmice" # for the rfmice procedure
+)
         #** RFRanger
-rfranger_diff <- discrepancy(imputed = "rfranger")
+rfranger_diff <- discrepancy(# calculate the value-wise discrepancy
+    procedure = "rfranger" # for the rfranger procedure
+)
 ```
 
 ```{r}
 #| label: fig-discrepancy-x
 #| eval: true
-#| fig-cap: Average discrepancy scores - X
+#| fig-cap: Discrepancies - X
 ggplot() +
-    geom_boxplot(aes(x = 'Mean', y = mean_x), data = interpolate_diff) +
-    geom_boxplot(aes(x = 'AMELIA', y = mean_x), data = amelia_diff) +
-    geom_boxplot(aes(x = 'Linear MICE', y = mean_x), data = lmice_diff) +
-    geom_boxplot(aes(x = 'RF MICE', y = mean_x), data = rfmice_diff) +
-    geom_boxplot(aes(x = "RF Ranger", y = mean_x), data = rfranger_diff) +
-    theme_minimal() +
-    labs(x = 'X', y = 'Average difference from complete data')
+    geom_boxplot(
+        aes(
+            x = 'Mean',
+            y = mean_x
+        ),
+        data = interpolate_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = 'AMELIA',
+            y = mean_x
+        ),
+        data = amelia_diff
+    ) + # boxplot for amelia procedure
+    geom_boxplot(
+        aes(
+            x = 'Linear MICE',
+            y = mean_x
+        ),
+        data = lmice_diff
+    ) + # boxplot for lmice procedure
+    geom_boxplot(
+        aes(
+            x = 'RF MICE',
+            y = mean_x
+        ),
+        data = rfmice_diff
+    ) + # boxplot for rfmice procedure with mice
+    geom_boxplot(
+        aes(
+            x = "RF Ranger",
+            y = mean_x
+        ),
+        data = rfranger_diff
+    ) + # boxplot for rfmice procedure with miceRanger
+    theme_minimal() + # add the minimal theme
+    labs(
+        x = 'X',
+        y = 'Average difference from complete data'
+    ) # adjust the labels to the axes
 ```
 
 ```{r}
 #| label: fig-discrepancy-z
 #| eval: true
-#| fig-cap: Average discrepancy scores - Z
+#| fig-cap: Discrepancies - Z
 ggplot() +
-    geom_boxplot(aes(x = 'Mean', y = mean_z), data = interpolate_diff) +
-    geom_boxplot(aes(x = 'AMELIA', y = mean_z), data = amelia_diff) +
-    geom_boxplot(aes(x = 'Linear MICE', y = mean_z), data = lmice_diff) +
-    geom_boxplot(aes(x = 'RF MICE', y = mean_z), data = rfmice_diff) +
-    geom_boxplot(aes(x = "RF Ranger", y = mean_z), data = rfranger_diff) +
-    theme_minimal() +
-    labs(x = 'Z', y = 'Average difference from complete data')
+    geom_boxplot(
+        aes(
+            x = 'Mean',
+            y = mean_z
+        ),
+        data = interpolate_diff
+    ) + # boxplot for interpolation procedure
+    geom_boxplot(
+        aes(
+            x = 'AMELIA',
+            y = mean_z
+        ),
+        data = amelia_diff
+    ) + # boxplot for amelia procedure
+    geom_boxplot(
+        aes(
+            x = 'Linear MICE',
+            y = mean_z
+        ),
+        data = lmice_diff
+    ) + # boxplot for lmice procedure
+    geom_boxplot(
+        aes(
+            x = 'RF MICE',
+            y = mean_z
+        ),
+        data = rfmice_diff
+    ) + # boxplot for rfmice procedure with mice
+    geom_boxplot(
+        aes(
+            x = "RF Ranger",
+            y = mean_z
+        ),
+        data = rfranger_diff
+        ) + # boxplot for rfmice prcedure with miceRanger
+    theme_minimal() + # add the minimal theme
+    labs(
+        x = 'Z',
+        y = 'Average difference from complete data'
+    ) # adjust the labels to the axes
 ```
 
 ```{r}
 #| label: fig-discrepancy-y
 #| eval: true
-#| fig-cap: Average discrepancy scores - Y
+#| fig-cap: Discrepancies - Z
 ggplot() +
-    geom_boxplot(aes(x = 'Mean', y = mean_y), data = interpolate_diff) +
-    geom_boxplot(aes(x = 'AMELIA', y = mean_y), data = amelia_diff) +
-    geom_boxplot(aes(x = 'Linear MICE', y = mean_y), data = lmice_diff) +
-    geom_boxplot(aes(x = 'RF MICE', y = mean_y), data = rfmice_diff) +
-    geom_boxplot(aes(x = "RF Ranger", y = mean_y), data = rfranger_diff) +
-    theme_minimal() +
-    labs(x = 'Y', y = 'Average difference from complete data')
+    geom_boxplot(
+        aes(
+            x = 'Mean',
+            y = mean_y
+        ),
+        data = interpolate_diff
+    ) + # boxplot for interpolation procedure
+    geom_boxplot(
+        aes(
+            x = 'AMELIA',
+            y = mean_y
+        ),
+        data = amelia_diff
+    ) + # boxplot for amelia procedure
+    geom_boxplot(
+        aes(
+            x = 'Linear MICE',
+            y = mean_y
+        ),
+        data = lmice_diff
+    ) + # boxplot for lmice procedure
+    geom_boxplot(
+        aes(
+            x = 'RF MICE',
+            y = mean_y
+        ),
+        data = rfmice_diff
+    ) + # boxplot for rfmice procedure with mice
+    geom_boxplot(
+        aes(
+            x = "RF Ranger",
+            y = mean_y
+        ),
+        data = rfranger_diff
+    ) + # boxplot for rfmice procedure with miceRanger
+    theme_minimal() + # add the minimal theme
+    labs(
+        x = 'Y',
+        y = 'Average difference from complete data'
+    ) # adjust the labels to the axes
 ```
 
-Overall, we see that the procedures yield small differences between the actual and estimated values. For Y, `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_y)) ```, the Linear `MICE` procedure has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_y)) ```, the interpolation procedure has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_y)) ```, and `RF-MICE` with the `mice` package has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_y)) ``` and a mean discrepancy of ```r sprintf('%.3f', mean(rfranger_diff$mean_y)) ```. For X, we see that the `RF-MICE` with the `mice` package has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_x)) ``` and ```r sprintf('%.3f', mean(rfranger_diff$mean_x))``` with the `miceRanger` package, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_x)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_x)) ```, and AMELIA has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_x)) ```. For Z, we also see that `RF-MICE` with the `mice` package has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_z)) ``` and ```r sprintf('%.3f', mean(rfranger_diff$mean_z)) ``` with the `miceRanger` package, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_z)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_z)) ``` and `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_z)) ```. 
+Overall, we see that the procedures yield somewhat small differences between the actual and estimated values. For Y, `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_y)) ```, the Linear `MICE` procedure has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_y)) ```, the interpolation procedure has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_y)) ```, and `RF-MICE` with the `mice` package has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_y)) ``` and a mean discrepancy of ```r sprintf('%.3f', mean(rfranger_diff$mean_y)) ```. For X, we see that the `RF-MICE` with the `mice` package has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_x)) ``` and ```r sprintf('%.3f', mean(rfranger_diff$mean_x))``` with the `miceRanger` package, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_x)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_x)) ```, and AMELIA has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_x)) ```. For Z, we also see that `RF-MICE` with the `mice` package has a mean discrepancy of ```r sprintf('%.3f', mean(rfmice_diff$mean_z)) ``` and ```r sprintf('%.3f', mean(rfranger_diff$mean_z)) ``` with the `miceRanger` package, interpolation has a mean discrepancy of ```r sprintf('%.3f', mean(interpolate_diff$mean_z)) ```, Linear `MICE` has a mean discrepancy of ```r sprintf('%.3f', mean(lmice_diff$mean_z)) ``` and `AMELIA II` has a mean discrepancy of ```r sprintf('%.3f', mean(amelia_diff$mean_z)) ```. 
 
-```{python}
-#| echo: false
-interpolate_benchmark = mean_benchmarks(procedure="inter")
-amelia_benchmark = mean_benchmarks(procedure="amelia")
-lmice_benchmark = mean_benchmarks(procedure="lmice")
-rfmice_benchmark = mean_benchmarks(procedure="rfmice")
-rfranger_benchmark = mean_benchmarks(procedure="rfranger")
+Though it is not a novel claim, I argue that in situations where we have missingness due to a `MAR` pattern, our regression models suffer from bias due to the systematic process generating that missingness. What I have argued so far is that we should consider using `RF-MICE` as it is, relative to other `MI` tools, a flexible tool that may be able to model a number of `MAR` processes which would help with reducing bias in our regression models. 
 
-from IPython.display import display, Markdown
-
-display(Markdown(f"""
-Turning to the computational performance of each procedure, interpolation with the `mice` package [@mice] took an average of {interpolate_benchmark.select("mean_seconds")[0,0]} seconds; AMELIA II [@amelia] took an average of {amelia_benchmark.select("mean_seconds")[0,0]} seconds; linear `mice` took an average of {lmice_benchmark.select("mean_seconds")[0,0]} seconds; `RF-MICE` with the `mice` package [@mice] took an average of {rfmice_benchmark.select("mean_seconds")[0,0]} seconds; and `RF-MICE` with the `miceRanger` package [@rfRanger] took an average of {rfranger_benchmark.select("mean_seconds")[0,0]}.
-"""
-))
-```
-
-Though it is not a novel claim, I argue that in situations where we have missingness due to a `MAR` pattern, our regression models suffer from bias due to the systematic process generating that missingness. What I have argued so far is that we should consider using `RF-MICE` as it is, relative to other `MI` tools, a flexible tool that may be able to model a number of `MAR` processes which would help with reducing bias in our regression models. To examine this claim, I take the amputed and imputed datasets (10) and use Rubin's rule to pool across the regression models performed on each imputed dataset. I do this for each sample. In total, I fit $`m` \times `s` $ -- $10 \times 1000$ regressions where I pool across `m` to produce a single set of statistics for each `s`. I calculate the discrepancy of the statistics for `X` and `Z` -- the variables directly contributing to the DGP of `Y` -- from their parameters. I then present a boxplot that demonstrates the differences in levels of bias between `LWD`, `Amelia`, Linear `MICE`, and `RF-MICE` across my samples. The specification for the regression is depicted in @eq-regression. 
+To examine this claim, I take the amputed and imputed datasets (10) and use Rubin's rule to pool across the regression models performed on each amputed and imputed sample. In total, I fit $`m` \times `s` $ -- $10 \times 1000$ regressions where I pool across my average posterior draws from `m` to produce a single set of statistics for each `s`. I calculate the discrepancy of the pooled average posterior draws for `X` and `Z` -- the variables directly contributing to the DGP of `Y` -- from their parameters. I then present boxplots that demonstrates the differences in levels of bias between `LWD`, `Amelia`, Linear `MICE`, and `RF-MICE` across my samples. The specification for the regression is depicted in @eq-regression. 
 
 $$
 \begin{split}
@@ -597,28 +736,260 @@ $$
 \end{split}
 $$
 
-For readers not familiar with this notation, @eq-regression essentially describes the familiar OLS regression. I fit a model where $y_i$ is explained by my likelihood function, $\mu_i$ and I assume that my parameters in my model can take any real number value. That is, I am not imposing a contraint with my defined priors about how large or small my estimates of $\beta_1$, $\beta_2$, and $\alpha$ can be. $\sigma$ depicts the variance, which I constrain to be positive.
+For readers not familiar with this notation, @eq-regression essentially describes the familiar OLS regression. I fit a model where $y_i$ is explained by my likelihood function, $\mu_i$ and I assume that my parameters in my model can take any real number value. That is, I am not imposing a constraint with my defined priors about how large or small my estimates of $\beta_1$, $\beta_2$, and $\alpha$ can be. $\sigma$ depicts the variance, which I constrain to be positive.
 
 ```{r}
 #| label: regression-discrepancies
-# LWD
-lwd_reg_diff <- discrepancy(procedure = "amputed", model = TRUE)   
-# Mean
-interpolate_reg_diff <- discrepancy(procedure = "interpolate", model = TRUE)
-# Amelia
-amelia_reg_diff <- discrepancy(procedure = "amelia", model = TRUE)
-# LMice
-lmice_reg_diff <- discrepancy(procedure = "lmice", model = TRUE)
-# RFMice
-rfmice_reg_diff <- discrepancy(procedure = "rfmice", model = TRUE)
-# RFRanger
-rfranger_reg_diff <- discrepancy(procedure = "rfranger", model = TRUE)
+
+if (params$reproduce == "true") {
+    #** compile the stan model 
+    compiled <- stan_model(
+        "ols.stan", # compile the model outlined in ols.stan file 
+        model_name = "OLS" # name it OLS
+    )
+    # LWD
+    lwd_reg_diff <- discrepancy( # calculate the discrepancy
+        procedure = "amputed", # for the lwd procedure 
+        model = TRUE # based on statistics-parameters
+    )   
+    # Mean
+    interpolate_reg_diff <- discrepancy( # calculate the discrepancy
+        procedure = "interpolate", # for the interpolate procedure
+        model = TRUE # based on statistics-parameters
+    )
+    # Amelia
+    amelia_reg_diff <- discrepancy( # calculate the discrepancy
+        procedure = "amelia", #for the amelia procedure
+        model = TRUE #based on statistics-parameters
+    )
+    # LMice
+    lmice_reg_diff <- discrepancy(#calculate the discrepancy
+        procedure = "lmice", #for the lmice procedure
+        model = TRUE # based on statistics-parameters
+    )
+    # RFMice
+    rfmice_reg_diff <- discrepancy(#calculate the discrepancy
+        procedure = "rfmice", # for the rfmice procedure
+        model = TRUE #based on statistics-parameters
+    )
+    # RFRanger
+    rfranger_reg_diff <- discrepancy(#calculate the discrepancy
+        procedure = "rfranger", # for the miceranger procedure
+        model = TRUE #based on statistics parameters
+    )
+
+    dbWriteTable( #write to a table
+        engine4, #in the engine4 database
+        "lwd_reg_bias", #the table should be named this 
+        lwd_reg_diff # the contents should be these data
+    )
+    dbWriteTable(#write to a table
+        engine4, #in the engine4 database
+        "interpolate_reg_bias", #the table should be named this
+        interpolate_reg_diff# the contents should be these data
+    )
+    dbWriteTable(#write to a table
+        engine4, # in the engine4 database
+        "amelia_reg_bias", #the table should be named this
+        amelia_reg_diff# the contents should be these data
+    )
+    dbWriteTable(#write to a table
+        engine4, #in the engine4 database
+        "lmice_reg_bias", # the table should be named this
+        lmice_reg_diff # the contents should be these data
+    )
+    dbWriteTable(#write to a table
+        engine4,#in the engine4 database
+        "rfmice_reg_bias",#the table should be named this
+        rfmice_reg_diff# the contents should be these data
+    )
+    dbWriteTable(#write to a table
+        engine4,#in the engine4 database
+        "rfranger_reg_bias",#the table should be named this
+        rfranger_reg_diff# the contents should be these data
+    )
+} else {
+    lwd_reg_diff <- dbGetQuery( #load from a table
+        engine4,#in the engine4 database
+        "SELECT * FROM lwd_reg_bias" # execute this query to get the data
+    )
+    interpolate_reg_diff <- dbGetQuery(#load from a table
+        engine4, # in the engine4 database
+        "SELECT * FROM interpolate_reg_bias" #execute this query to get the data
+    )
+    amelia_reg_diff <- dbGetQuery(#load from a table
+        engine4, #in the engine4 database 
+        "SELECT * FROM amelia_reg_bias" #execute this query to get the data
+    )
+    lmice_reg_diff <- dbGetQuery(#load from a table
+        engine4, #in the engine4 database
+        "SELECT * FROM lmice_reg_bias" #execute this query to get the data
+    )
+    rfmice_reg_diff <- dbGetQuery(#load from a table
+        engine4, #in the engine4 database
+        "SELECT * FROM rfmice_reg_bias" #execute this query to get the data
+    )
+    rfranger_reg_diff <- dbGetQuery(#load from a table
+        engine4, #in the engine4 database
+        "SELECT * FROM rfranger_reg_bias" #execute this query to get the data
+    )
+}
+
 ```
 
+```{r}
+#| label: fig-reg-discrepancy-x
+#| eval: true
+#| fig-cap: Average discrepancy scores - X
+ggplot() + # make a plot object
+    geom_boxplot(
+        aes(
+            x = 'LWD',
+            y = mean_x
+        ),
+        data = lwd_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = 'Mean',
+            y = mean_x
+        ),
+        data = interpolate_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = 'AMELIA',
+            y = mean_x
+        ),
+        data = amelia_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = 'Linear MICE',
+            y = mean_x
+        ),
+        data = lmice_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = 'RF MICE',
+            y = mean_x
+        ),
+        data = rfmice_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = "RF Ranger",
+            y = mean_x
+        ),
+        data = rfranger_reg_diff
+    ) +
+    theme_minimal() +
+    labs(
+        x = 'X',
+        y = 'Average difference of point estimate from parameter'
+    )
+```
 
+```{r}
+#| label: fig-reg-discrepancy-z
+#| eval: true
+#| fig-cap: Average discrepancy scores - Z
+ggplot() +
+    geom_boxplot(
+        aes(
+            x = 'LWD',
+            y = mean_z
+        ),
+        data = lwd_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = 'Mean',
+            y = mean_z
+        ),
+        data = interpolate_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = 'AMELIA',
+            y = mean_z
+        ),
+        data = amelia_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = 'Linear MICE',
+            y = mean_z
+        ),
+        data = lmice_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = 'RF MICE',
+            y = mean_z
+        ),
+        data = rfmice_reg_diff
+    ) +
+    geom_boxplot(
+        aes(
+            x = "RF Ranger",
+            y = mean_z
+        ),
+        data = rfranger_reg_diff
+    ) +
+    theme_minimal() +
+    labs(
+        x = 'Z',
+        y = 'Average difference from complete data'
+    )
+```
+
+@fig-reg-discrepancy-x and @fig-reg-discrepancy-z present the distribution of differences between my average posterior draw and of my parameter value for the $\beta$ coefficient for `X` and for `Z` respectively. First looking at bias in the $\beta$ estimates for `X`, I see that the median discrepancy caused by `LWD` is quite small (close to zero). However, in looking at the spread, there are a number of models that produced biased estimates. It appears that the only two procedures that had a median of no bias was Linear `MICE` and `RF-MICE` with the `miceRanger` package [@miceranger]. We see, that the spread of discrepancies is incredibly small when performing `RF-MICE` with the `miceRanger` package [@miceranger]. `AMELIA` performs quite well in terms of median levels of discrepancies, but still produces biased estimates on average, with some examples of extremely poor performance (in terms of bias). Turning to discrepancies between the $\beta$ statistics and parameters for `Z`, we see a very similar story. `LWD` produces a distribution of discrepancies that is quite concerning while `RF-MICE` as implemented through the `miceRanger` package [@miceranger] does quite well at reducing bias caused by the `MAR` process. `AMELIA II` also does quite well in reducing bias, on average, however can vary quite significantly in its ability to do so. 
+
+```{r}
+#| label: r-close
+dbDisconnect(engine3, shutdown = TRUE)
+dbDisconnect(engine4, shutdown = TRUE)
+```
+
+```{python}
+#| echo: false
+
+# Take the average time it took each procedure for each sample
+interpolate_benchmark = mean_benchmarks(procedure="inter")
+amelia_benchmark = mean_benchmarks(procedure="amelia")
+lmice_benchmark = mean_benchmarks(procedure="lmice")
+rfmice_benchmark = mean_benchmarks(procedure="rfmice")
+rfranger_benchmark = mean_benchmarks(procedure="rfranger")
+
+# need this to display text for markdown output
+from IPython.display import display, Markdown
+
+# display the following text with a wonky python in-line code markdown work around
+display(Markdown(f"""
+Turning to the computational performance of each procedure, interpolation with the `mice` package [@mice] took an average of {interpolate_benchmark.select("mean_seconds")[0,0]} seconds; AMELIA II [@amelia] took an average of {amelia_benchmark.select("mean_seconds")[0,0]} seconds; linear `mice` took an average of {lmice_benchmark.select("mean_seconds")[0,0]} seconds; `RF-MICE` with the `mice` package [@mice] took an average of {rfmice_benchmark.select("mean_seconds")[0,0]} seconds; and `RF-MICE` with the `miceRanger` package [@rfRanger] took an average of {rfranger_benchmark.select("mean_seconds")[0,0]}.
+"""
+)) # This all should be pasted out into the manuscript
+```
 <!--
     END OF METHODS SECTION
 -->
+# Conclusions
+
+In theory, `RF-MICE` is a quite flexible tool that can operate in a number of circumstances to not only discover systematic processes leading to missingness in one's data, but to also use such information to recover the values. These expectations rely on the claim that Random Forest models are optimized for discovering patterns and to use that information to make out-of-sample predictions. With `RF-MICE` Random forests are coupled with `MICE` to produce significant improvements at retrieving the true values when a `MAR` process is present.
+
+Using simulated data, I demonstrate two implementations of `RF-MICE` in R and compare it to implementations of more common procedures for dealing with `MAR` processes in political science. Overall, my simulated data and a number of measures of performance favor those theoretical expectations.
+
+When comparing the distribution of imputed samples to the true samples, as if the `MAR` process was not present, both `RF-MICE` implementations do quite well in recovering the true values that were missing. When examining the discrepancy between what the imputed value is and the true value, the two `RF-MICE` implementations provide quite small discrepancies on average.
+
+Measuring the performance of `RF-MICE` in terms of reducing bias in statistical estimation, I find that `RF-MICE`, when implemented with the `miceRanger` package [@miceranger], stands out as a valuable tool for researchers to use to reduce bias generated with `MAR` processes.
+
+While in theory, it is nice for the applied researcher to hear about a new and powerful tool or procedure, they face many constraints. When examining how much time each implementation of a procedure took, I observed that both implementations of `RF-MICE` were not significantly worse in time it took to complete the procedure relative to other multiple imputation procedures. 
+
+Altogether, the simulated data suggest that `RF-MICE` is a valuable procedure for the applied researcher's toolbox. When dealing with missing data that one suspects may not be the result of a `MCAR` process, one should consider the flexibility that `RF-MICE` provides. It does not require the researcher to specify the variables involved in the `MAR` process, but also does not introduce significant computational costs nor introduce so much complexity as a procedure that it is impossible to anticipate or diagnose problems the procedure may introduce.
+
+It is important to remind the reader that all tools have their limitations and that their value are quite dependent on the context for which they are to be applied. It is useful, however, to include tools that vary in the assumptions they make [@neumayer_plumper_2017]. The capabilities of `RF-MICE` are no different. While `RF-MICE` is quite flexible for addressing a number of `MAR` processes, it is important to note that it is not and should not be seen as a default or the sole tool for one to use when dealing with missing data. With the number of tools and their implementations being so available to the applied researcher, one should not shy away from using multiple implementations of these tools to ensure that one's substantive conclusions are not dependent on one tool or implementation.
 <!--
     END OF DOCUMENT
 -->
