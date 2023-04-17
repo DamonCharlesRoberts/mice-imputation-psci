@@ -1,7 +1,7 @@
 ---
 title: |
-  Giving the leaves back to the forest
-subtitle: A primer on the use of random forest models as chained equations for imputing missing data
+    Seeing the leaves through the forest
+subtitle: A peak under the hood using random forest models for missing data problems
 short-title: Giving the leaves back to the forest
 code-repo: "Replication materials are stored at <https://github.com/DamonCharlesRoberts/mice-imputation-psci>"
 author:
