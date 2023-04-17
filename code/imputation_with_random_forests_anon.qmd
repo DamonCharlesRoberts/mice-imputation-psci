@@ -35,7 +35,7 @@ nocite: |
 format:
   hikmah-pdf:
     # Spit out in drafts directory
-    latex-output-dir: "../drafts/"
+    latex-output-dir: "../drafts/submissions/ajps"
     # Use biblatex-chicago
     biblatex-chicago: true
     biblio-style: authordate
