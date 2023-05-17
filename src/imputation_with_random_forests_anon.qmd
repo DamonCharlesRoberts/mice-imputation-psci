@@ -63,14 +63,93 @@ params:
     reproduce: false
 ---
 
-{{< pagebreak >}}
-
 ```{python}
 #| tags: [parameters]
 
 reproduce = "false"
 ```
 
+```{python}
+#| label: setup-block
+# import modules
+    #* from env
+from itertools import repeat
+from timeit import default_timer
+import numpy as np
+import duckdb as db
+import polars as pl
+    #* user defined
+from PY.helper import simulate, ampute, create_iter_table, distplot
+# Seed
+np.random.seed(12102022)
+# Loop parameters
+n: int=100
+datasets: int=1000
+m: int=10
+```
+
+```{r}
+#| label: simulation-r-setup-block
+
+# Set seed  
+set.seed(12102022)
+# Modularly load required functions
+box::use(
+    doParallel[...]
+    ,DBI[
+        dbConnect
+        ,dbDisconnect
+        #,dbGetQuery, dbWriteTable
+    ]
+    ,duckdb[
+        duckdb
+    ], #needs to be version 0.6.1 for both R and python
+    #mice = mice[ampute, pool, complete, mice],
+    #miceRanger = miceRanger[miceRanger],
+    #data.table = data.table[data.table],
+    #Amelia = Amelia[amelia],
+    tictoc = tictoc[...],
+    #dplyr = dplyr[select, filter, bind_rows],
+    #tibble = tibble[tibble],
+    #ggplot2 = ggplot2[ggplot, geom_density, aes, theme_minimal, labs, geom_boxplot, ggsave],
+    #rstan = rstan[...]
+    ,./R/organize_data[
+        organize_data
+    ]
+    ,./R/sim_ridgeline[
+        sim_ridgeline
+    ]
+    ,./R/impute[
+        impute
+    ]
+)
+require(data.table)# for miceRanger
+
+# Setup parallelization
+cores <- parallel::detectCores()
+registerDoParallel(cores=cores)
+## rstan options
+#options(mc.cores = parallel::detectCores())
+#rstan_options(auto_write = TRUE)
+
+## Load user defined functions
+#source("helper.R")
+# Loop parameters
+n <- 100 # size of each sample
+datasets <- 1000 # size of number of samples
+
+# Database connections
+#engine3 <- dbConnect(
+#    duckdb(),
+#    dbdir = "../data/sim_imputed.db"
+#)
+#engine4 <- dbConnect(
+#    duckdb(),
+#    dbdir = "../data/benchmarks.db"
+#)
+```
+
+{{< pagebreak >}}
 # Introduction
 
 Missing values are common in social science data. @king_et-al_2001_apsr estimate that political scientists lose about one-third of their data in their complete case regression analyses due to missing data. There are many reasons why missing values arise in our data. In surveys, these are referred to as item-nonresponse and pose threats to obtaining unbiased estimates for public opinion research when researchers utilize listwise deletion (`LWD`) in their regression analyses [@weisberg_2005_chicago]; mainly when the researcher can predict the cause of the missingness with an observed cause - which scholars refer to the data as "missing at random" [@king_et-al_2001_apsr].[^1] More generally, missing values come about in other types of data due to the unit's (e.g., country, respondent, politician) attempt to obfuscate information, data collector error, or researcher error. When common and not from a stochastic data generating process (DGP), missing data pose threats to causal inference through omitted variable bias where the missing value in the variables included in a statistical model can be predicted by another variable in your model.
@@ -89,11 +168,10 @@ This manuscript compares the utility of random forest models in the `MICE` proce
 
 The next section reviews common approaches handling missing data that political scientists currently use. The next section describes machine learning and random forest models and links this to my claim of their utility for predicting missing data when used in the `MICE` procedure. I then move into applied examples where I examine the performance of these random forest models to other common approaches to dealing with missing data on simulated data. I then discuss recommendations for when one should use the reigning popular techniques or the random forest application in the `MICE` procedure.
 
-```{=html}
 <!-- 
     END OF INTRODUCTION SECTION
 -->
-```
+
 # Types of missing data, imputation, and MI in Political Science
 
 ## MCAR, MAR, and MNAR
@@ -168,11 +246,10 @@ One valuable model for allowing one to include a large number of parameters with
 
 : Common solutions for missing data {#tbl-summary-missing-solutions}
 
-```{=html}
 <!-- 
     END OF LIT REVIEW
 -->
-```
+
 # The utility of random forest models for imputing political science data
 
 Random forest models are concerned with calculating a fixed out-of-sample prediction under the supervised machine learning framework. They are popular among data scientists and researchers primarily interested in providing predictions instead of engaging in causal inference. In non-imputation applications of supervised machine learning models - a broader category of machine learning models that includes random forests, these models take partial, observed information about an outcome and estimate the relationship between the units with observed outcomes and several other observed features for those units. Then for the units without an observed outcome, we generalize that relationship to predict an outcome for them.
@@ -203,39 +280,6 @@ In the next section, I illustrate the use of random forest models for political 
 
 # Application of `MICE` with random forests
 
-```{python}
-#| label: setup-block
-# import modules
-    #* from env
-from itertools import repeat
-from timeit import default_timer
-import numpy as np
-import duckdb as db
-import miceforest as mf
-import polars as pl
-import plotly.figure_factory as ff
-import plotly.io as pio
-    #* user defined
-from helper import simulate, ampute, transformation, impute, create_iter_table, mean_benchmarks
-# Seed
-np.random.seed(90210)
-# Database
-engine=db.connect("../data/sim_original.db")
-engine2=db.connect("../data/sim_amputed.db")
-# Loop parameters
-n: int=100
-datasets: int=1000
-m: int=10
-# Default template
-    #* define default template
-pio.templates.default = "plotly_white"
-    #* define line colors for distplots
-dist_color = []
-for i in range(datasets):
-    i = "#D3D3D3"
-    dist_color.append(i)
-```
-
 Using the `numpy` library [@numpy], I simulate a population where $N=1000000$. The population has 5 variables with the `DGP`s presented in @eq-sim-dgp.
 
 $$
@@ -248,73 +292,34 @@ y_i = 0.6 \times x_i + 0.9 \times z_i + Normal(0,1)
 \end{split}
 $$ {#eq-sim-dgp}
 
-I then use the `polars` library [@polars] to generate 1000 random samples from the population with $n = 100$ for each sample. To introduce missingness into my data, I use the `miceRanger` library [@miceRanger] to "ampute" 40% of the data for each of these samples with a `MAR` process. As one of the advantages of the `RF-MICE` procedure is to impute data generated from more complicated `MAR` processes, I ampute the data by constructing a logistic regression for each variable. Where the predicted value equals one, the corresponding observation is counted as missing [@miceRanger]. For the reader, I use the Plotly library [@plotly] to produce @fig-sim-dist; which presents the distributions of data for the `X`, `Z`, and `Y` variables for my samples *before* amputation as well as the distribution of data for the `X`, `Z`, and `Y` variables for my samples *after* amputation. I would like to note, there are other ways I can perform the amputation of the data. The particular DGP of the missing data here is relatively simple relative to what we may have in real-world situations. However, given that `RF-MICE` is expected to perform better in situations with more complicated missing data patterns, the results of the simulated analyses may be an understatement of the differences in the reduction of bias between these different tools.
+I then use the `polars` library [@polars] to generate 1000 random samples from the population with $n = 100$ for each sample. To introduce missingness into my data, I use the `miceforest` python library [@miceForest] to "ampute" 40% of the data for each of these samples with a `MAR` process. As one of the advantages of the `RF-MICE` procedure is to impute data generated from more complicated `MAR` processes, I ampute the data by constructing a logistic regression for each variable. Where the predicted value equals one, the corresponding observation is counted as missing [@miceForest]. For the reader, I use the `ggplot2` [@ggplot2] and `ggridges` [@ggridges] R packages to produce @fig-sim-dist and @fig-amputed-dist; which presents the distributions of data for the `X`, `Z`, and `Y` variables for my samples *before* amputation as well as the distribution of data for the `X`, `Z`, and `Y` variables for my samples *after* amputation. I would like to note, there are other ways I can perform the amputation of the data. The particular DGP of the missing data here is relatively simple relative to what we may have in real-world situations. However, given that `RF-MICE` is expected to perform better in situations with more complicated missing data patterns, the results of the simulated analyses may be an understatement of the differences in the reduction of bias between these different tools.
 
 ```{python}
 #| label: simulated-generation-block
 
+# Open database connection
+sample_connection=db.connect("../data/sim_original.db")
 # Execute all of the following if params.reproduce was set to true
 if reproduce == "true":
     # Create 1000 datasets and store it in a list
     pop_data_frame, sim = simulate(num_obs = n, samples = datasets)
-
     # Take the original simulated datasets and store them in the database
     for i in range(datasets):
-        data_frame = sim[i]
         create_iter_table(
-            data_frame = data_frame,
+            data_frame = sim[i],
             name_append = "original",
             i = i,
-            engine = engine
+            engine = sample_connection
         )
-    # take the simulated dataframes and produce three dataframes for each x, y, and z variable
-    x_list, z_list, y_list = transformation(
-        data_frames = sim,
-        datasets = datasets
-    )
-
-    # convert these dataframes to pandas to work nicely with plotly
-    x_list_pandas = x_list.to_pandas()
-    z_list_pandas = z_list.to_pandas()
-    y_list_pandas = y_list.to_pandas()
-
-    # Create density plots of variables across datasets
-        #* For x variable
-    fig_x = ff.create_distplot(
-        [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframes
-        x_list.columns,
-        colors=dist_color, # grab the names of the dataframe columns
-        show_hist = False, # do not show the histogram
-        show_rug = False # do not show the rugplot
-    )
-        #* For z variable
-    fig_z = ff.create_distplot(
-        [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframes
-        z_list.columns,
-        colors=dist_color, # grab the names of the dataframe columns
-        show_hist = False, # do not show the histogram
-        show_rug = False # do not show the rugplot
-    )
-        #* For y variable
-    fig_y = ff.create_distplot(
-        [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframes
-        y_list.columns,
-        colors=dist_color, # grab the names of the dataframe columns
-        show_hist = False, # do not show the histogram
-        show_rug = False # do not show the rugplot
-    ) 
-        #* remove the legends for each of these plots
-    fig_x.update_layout(showlegend=False)
-    fig_z.update_layout(showlegend=False)
-    fig_y.update_layout(showlegend=False)
-        #* store an image of each of these plots
-    fig_x.write_image("../assets/pop_x_dist.png")
-    fig_z.write_image("../assets/pop_z_dist.png")
-    fig_y.write_image("../assets/pop_y_dist.png")
+# Close connection
+sample_connection.close()
 ```
 
 ```{python}
 #| label: amputation-block
+
+# Open database connection
+amputed_connection=db.connect("../data/sim_amputed.db")
 
 if reproduce == "true":
     # Take each of the dataframes in the sim object, ampute them, and return a list object containing all of the dataframes
@@ -328,251 +333,159 @@ if reproduce == "true":
             engine = engine2,
             i = i
         )
-    # take the amputed dataframes and produce three dataframes for each x, y, and z variable
-    x_list, z_list, y_list = transformation(
-        data_frames = amputed,
-        datasets = datasets
-    )
-
-    # take the three dataframes, drop missing values and convert to pandas
-    x_list_pandas = x_list.drop_nulls().to_pandas()
-    z_list_pandas = z_list.drop_nulls().to_pandas()
-    y_list_pandas = y_list.drop_nulls().to_pandas()
-
-    # create density plots of the variables across datasets
-        #* for x variable
-    fig_x = ff.create_distplot(
-        [x_list_pandas[c] for c in x_list.columns], # grab the columns in the dataframe
-        x_list.columns,
-        colors=dist_color, # grab the column names from the dataframe
-        show_hist = False, # do not show the histogram
-        show_rug = False # do not show the rugplot
-    )
-        #* for z variable
-    fig_z = ff.create_distplot(
-        [z_list_pandas[c] for c in z_list.columns], # grab the columns in the dataframe
-        z_list.columns,
-        colors=dist_color, # grab the column names from the dataframe
-        show_hist = False, # do not show the histogram
-        show_rug = False # do not show the rugplot,
-    )
-        #* for y variable
-    fig_y = ff.create_distplot(
-        [y_list_pandas[c] for c in y_list.columns], # grab the columns in the dataframe
-        y_list.columns,
-        colors=dist_color, # grab the column names from the dataframe
-        show_hist = False, # do not show the histogram
-        show_rug = False # do not show the rugplot
-    )
-        #* remove the legends for these plots
-    fig_x.update_layout(showlegend=False)
-    fig_z.update_layout(showlegend=False)
-    fig_y.update_layout(showlegend=False)
-        #* store the plots as images
-    fig_x.write_image("../assets/amputed_x_dist.png")
-    fig_z.write_image("../assets/amputed_z_dist.png")
-    fig_y.write_image("../assets/amputed_y_dist.png")
+# Close connection
+amputed_connection.close()
 ```
-
-```{python}
-#| label: close-db-connections
-engine.close() # close engine connection
-engine2.close() # close engine2 connection
-```
-
-::: {#fig-sim-dist layout-ncol="2"}
-![X](../assets/pop_x_dist.png)
-
-![X - amputed](../assets/amputed_x_dist.png)
-
-![Z](../assets/pop_z_dist.png)
-
-![Z - amputed](../assets/amputed_z_dist.png)
-
-![Y](../assets/pop_y_dist.png)
-
-![Y - amputed](../assets/amputed_y_dist.png)
-
-Distributions of simulated data
-:::
-
-With these amputed datasets, I then apply some of the procedures I have discussed to impute these values. Interpolation is a quite simple procedure where I can fill in missing values by using the mean value of that particular variable for the non-missing observations. I perform this interpolation with the `mice` package [@mice] and iterate over it to provide 10 datasets. I also use the `AMELIA II` package [@honaker_et-al_2011_jss] to perform standard `MI` and also store 10 datasets from the iterations. I use a standard Bayesian linear model in the `MICE` framework with the `mice` package [@mice]. Bayesian linear models with uniform distributions or a weak prior distribution are similar to the familiar Ordinary Least Squares [@gelman_et-al_2021_cup]. As discussed before, the final procedure I use is a random forest in the `MICE` framework. I perform the `RF-MICE` procedure using the `mice` package [@mice] and an alternative package `miceRanger` [@miceRanger]. I can use the codeblock below to perform the imputation with each of the tools I use on any given dataset I would use in a realistic research setting.
-
-```{.r}
-#| label: imputation-code-block-example
-#| echo: true
-#| eval: false
-
-# Install libraries
-install.packages(
-    c(
-        "AMELIA"
-        , "mice"
-        , "miceRanger"
-    )
-)
-# Load libraries
-library(Amelia) # for MI
-library(mice) # for many MICE and interpolation procedures
-library(miceRanger) # for RF-Mice procedure
-# Dataset
-
-df
-
-# Listwise Deletion
-dfImputed <- df[complete.cases(df), ] # exclude rows that have missing values in any column
-
-# Interpolation
-dfImputed <- mice(
-    df # dataframe
-    , m = 10 # number of imputations
-    , method = "mean" # mean interpolation
-)
-
-# Amelia
-dfImputed <- amelia(
-    df # dataframe
-    , m = 10 # number of imputations
-)
-
-# Linear Bayesian MICE
-dfImputed <- mice(
-    df # dataframe
-    , m = 10 # number of imputations
-    , method = "linear" # Bayesian linear MICE
-)
-
-# RF-MICE with mice package
-dfImputed <- mice(
-    df # dataframe
-    , m = 10 # number of imputations
-    , method = "rf" # RF-MICE
-)
-
-# RF-MICE with miceRanger package
-dfImputed <- miceRanger(
-    df # dataframe
-    , m = 10 # number of imputations
-)
-```
-
-When producing the imputed datasets, I use the `tictoc` package to record the amount of time each procedure takes to complete the task on the 1000 samples as a measure of computational cost.[^5] As a number of factors may affect the absolute computational costs for these procedures (e.g., hardware, whether other applications or software are running, whether one uses parallelization, etcetera), I am primarily going to focus on the relative computational costs of each procedure.
-
-[^5]: It is important to note that these benchmarks are based on a computer 32 GB of RAM, on a Intel i7-9700K processor at 3.60GHz with 8 cores using a NVIDIA GEForce RTX 2070 graphics card.
 
 ```{r}
-#| label: simulation-r-setup-block
+#| label: load-simulated-samples
 
-# Set seed  
-set.seed(90210)
-# Modularly load required functions
-box::use(
-    DBI = DBI[dbConnect, dbGetQuery, dbWriteTable, dbDisconnect],
-    duckdb = duckdb[duckdb], #needs to be version 0.6.1 for both R and python
-    mice = mice[ampute, pool, complete, mice],
-    miceRanger = miceRanger[miceRanger],
-    data.table = data.table[data.table],
-    Amelia = Amelia[amelia],
-    tictoc = tictoc[...],
-    dplyr = dplyr[select, filter, bind_rows],
-    tibble = tibble[tibble],
-    ggplot2 = ggplot2[ggplot, geom_density, aes, theme_minimal, labs, geom_boxplot, ggsave],
-    rstan = rstan[...]
-)
-require(data.table)# for miceRanger
-
-# rstan options
-
-options(mc.cores = parallel::detectCores())
-rstan_options(auto_write = TRUE)
-
-# Load user defined functions
-source("helper.R")
-# Loop parameters
-n <- 100 # size of each sample
-datasets <- 1000 # size of number of samples
-
-# Connect to databases
-engine <- dbConnect(
+# Open database connection
+sampleConnection <- dbConnect(
     duckdb(),
     dbdir = "../data/sim_original.db",
     read_only = TRUE # read only mode
 )
-engine2 <- dbConnect(
+
+# Load sample data
+sample <- organize_data(
+    type="original"
+    ,con=sampleConnection
+)
+```
+```{r}
+#| label: fig-sim-dist
+#| layout-nrow: 1
+#| fig-cap: Distributions of complete sample data
+#| fig-subcap:
+#|  - X
+#|  - Z
+#|  - Y
+# Generate plots of samples
+samplePlots <- lapply(
+    c("X", "Z", "Y")
+    ,sim_ridgeline
+    ,data=sample
+    ,type="original"
+    ,datasets=datasets
+    #,engine=sampleConnection
+)
+samplePlots[[1]]
+samplePlots[[2]]
+samplePlots[[3]]
+```
+
+```{r}
+#| label: load-amputed-data
+
+# Open database connection
+amputedConnection <- dbConnect(
     duckdb(),
     dbdir = "../data/sim_amputed.db",
     read_only = TRUE # read_only mode
 )
-engine3 <- dbConnect(
-    duckdb(),
-    dbdir = "../data/sim_imputed.db"
-)
-engine4 <- dbConnect(
-    duckdb(),
-    dbdir = "../data/benchmarks.db"
+# Access amputed data
+amputed <- organize_data(
+    type="amputed"
+    ,con=amputedConnection
 )
 ```
+```{r}
+#| label: fig-amputed-dist
+#| layout-nrow: 1
+#| fig-cap: Distributions of amputed sample data
+#| fig-subcap:
+#|  - X
+#|  - Z
+#|  - Y
+amputedPlots <- lapply(
+    c("X", "Z", "Y")
+    ,sim_ridgeline
+    ,data=amputed
+    ,type="amputed"
+    ,datasets=datasets
+    #,engine=engine2
+)
+amputedPlots[[1]]
+amputedPlots[[2]]
+amputedPlots[[3]]
+```
+
+With these amputed datasets, I then apply some of the procedures I have discussed to impute these values. Interpolation is a quite simple procedure where I can fill in missing values by using the mean value of that particular variable for the non-missing observations. I perform this interpolation with the `mice` package [@mice] and iterate over it to provide 10 datasets. I also use the `AMELIA II` package [@honaker_et-al_2011_jss] to perform standard `MI` and also store 10 datasets from the iterations. I use a standard Bayesian linear model in the `MICE` framework with the `mice` package [@mice]. Bayesian linear models with uniform distributions or a weak prior distribution are similar to the familiar Ordinary Least Squares [@gelman_et-al_2021_cup]. As discussed before, the final procedure I use is a random forest in the `MICE` framework. I perform the `RF-MICE` procedure using the `mice` package [@mice] and an alternative package `miceRanger` [@miceRanger]. I provide an example code block to do this in the supplementary information.
+
+When producing the imputed datasets, I use the `tictoc` package to record the amount of time each procedure takes to complete the task on the 1000 samples as a measure of computational cost.[^5] As a number of factors may affect the absolute computational costs for these procedures (e.g., hardware, whether other applications or software are running, whether one uses parallelization, etcetera), I am primarily going to focus on the relative computational costs of each procedure.
+
+[^5]: It is important to note that these benchmarks are based on a computer 16 GB of RAM, on a AMD Ryzen 9 6900HX processor at 3.30GHz with a Radeon Graphics Card.
 
 ```{r}
 #| label: r-imputations
-
 if (params$reproduce == "true") {
     # Interpolation
     tic.clearlog() # clear the log for tic
     tic("Interpolate") # initialize time counter for Interpolate procedure
-    interpolate <- impute(# perform interpolation imputation with mice package
-        package="mice",
-        meth="mean"
-    )
-    toc(# document how much time it took for this to complete
-        log = TRUE,
-        quiet = TRUE
-    )
+    interpolate <- impute(
+        df=amputed
+        ,package="mice"
+        ,meth="mean"
+    )# perform interpolation imputation with mice package
+    toc(
+        log = TRUE
+        ,quiet = TRUE
+    )# document how much time it took for this to complete
 
     # AMELIA
     tic("Amelia") # initialize time counter for amelia procedure
-    amelia <- impute( # perform amelia imputation
-        package="amelia",
-        con = engine4
-    )
-    toc( # document how much time it took for this to complete
-        log = TRUE,
-        quiet = TRUE
-    )
+    amelia <- impute(
+        df=amputed
+        ,package="amelia"
+    )# perform amelia imputation
+    toc(
+        log = TRUE
+        ,quiet = TRUE
+    )# document how much time it took for this to complete
 
     # LMICE
     tic("LMICE") # initialize time counter for linear mice procedure
-    lmice <- impute( # perform lmice imputation with mice package
-        package="mice",
-        meth="norm",
-        con = engine4
-    )
-    toc( # document how much time it took for this to complete
-        log = TRUE,
-        quiet = TRUE
-    )
+    lmice <- impute(
+        df=amputed
+        ,package="mice"
+        ,meth="norm"
+    )#perform imputation with linear mice
+    toc( 
+        log = TRUE
+        ,quiet = TRUE
+    )# document how much time it took for this to complete
 
     # RFMICE
     tic("RFMICE") # initialize time counter for rfmice procedure
-    rfmice <- impute(  # perform rfmice imputation with mice package
-        package="mice",
-        meth="rf",
-        con = engine4
-    )
-    toc( # document how much time it took for this to complete
-        log = TRUE,
-        quiet = TRUE
-    )
+    rfmice <- impute(
+        data=amputed
+        ,package="mice"
+        ,meth="rf"
+    )# perform rfmice imputation with mice package
+    toc(
+        log = TRUE
+        ,quiet = TRUE
+    )# document how much time it took for this to complete
 
     #RFRanger
     tic("RFRanger") # initialize time counter for rfmice procedure
-    rfranger <- impute(  # perform rfmice imputation with miceRanger package
-        package="miceRanger",
-        con = engine4
-    )
-    toc( # document how much time it took for this to complete
-        log = TRUE,
-        quiet = TRUE
+    rfranger <- impute(
+        data=amputed
+        ,package="miceRanger"
+    )# perform rfmice imputation with miceRanger package
+    toc(
+        log = TRUE
+        ,quiet = TRUE
+    )# document how much time it took for this to complete
+
+    # Store these into one list
+    imputedList <- list(
+        interpolate
+        ,amelia
+        ,lmice
+        ,rfmice
+        ,rfranger
     )
 
     #Store timing info
@@ -595,53 +508,76 @@ if (params$reproduce == "true") {
     )
 
     # Store imputed data in database
-    for (i in 1: datasets) {
-        df <- interpolate[[i]] # take each dataframe from the interpolate list
-        dbWriteTable( # and write each to a table
-            engine3, # connect to the engine3 database
-            paste0("mean_", as.character(i)), # the name of the table should be the combo of mean_i
-            df, # should be the current df
-            overwrite = TRUE # overwrite this if the table by the current name already exists
+    procedureName <- c("interpolate", "amelia", "lmice", "rfmice", "rfranger")
+    procedureBoi <- c("interpolate", "amelia")
+
+    base::Map(
+        function(p,j) base::Map(
+            function(d,i) DBI::dbWriteTable(
+                engine3,
+                paste0(
+                    j
+                    ,as.character(i)
+                )
+                ,d
+                ,overwrite=TRUE
+            ),
+            d=p,
+            i=seq_along(p)
         )
-    }
-    for (i in 1: datasets) {
-        df <- amelia[[i]] # take each dataframe from the amelia list
-        dbWriteTable( # and write each to a table
-            engine3, # connect to the engine3 database
-            paste0("amelia_", as.character(i)), # the name of the table should be the combo of amelia_i
-            df, # should be the current df
-            overwrite = TRUE # overwrite this if the table by the current name already exists
-        )
-    }
-    for (i in 1: datasets) {
-        df <- lmice[[i]] # take each dataframe from the lmice list
-        dbWriteTable( # and write each to a table
-            engine3, # connect to the engine3 database
-            paste0("lmice_", as.character(i)), # the name of the table should be the combo of lmice_i
-            df, # should be the current df
-            overwrite = TRUE # overwrite this if the table by the current name already exists
-        )
-    }
-    for (i in 1: datasets) {
-        df <- rfmice[[i]] # take each dataframe from the rfmice list
-        dbWriteTable( # and write each to a table
-            engine3, # connect to the engine3 database
-            paste0("rfmice_", as.character(i)), # the name of the table should be the combo of rfmice_i 
-            df, # should be the current df
-            overwrite = TRUE # overwrite this if the table by the current name already exists
-        )
-    }
-    for (i in 1: datasets) {
-        df <- data.frame( # store each object from the rfranger list into a dataframe
-            rfranger[[i]]
-        ) 
-        dbWriteTable( # and write each to a table
-            engine3, # connect to the engine3 database
-            paste0("rfranger_", as.character(i)), # the name of the table should be the combo of rfranger_i
-            df, # should be the current df
-            overwrite = TRUE # overwrite this if the table by the current name already exists
-        )
-    }
+        ,p=imputedList
+        ,j=procedureName
+    )
+    
+    DBI::dbGetQuery(engineTest, "SHOW tables;")
+
+    #for (i in 1: datasets) {
+    #    df <- interpolate[[i]] # take each dataframe from the interpolate list
+    #    dbWriteTable( # and write each to a table
+    #        engine3, # connect to the engine3 database
+    #        paste0("mean_", as.character(i)), # the name of the table should be the combo of mean_i
+    #        df, # should be the current df
+    #        overwrite = TRUE # overwrite this if the table by the current name already exists
+    #    )
+    #}
+    #for (i in 1: datasets) {
+    #    df <- amelia[[i]] # take each dataframe from the amelia list
+    #    dbWriteTable( # and write each to a table
+    #        engine3, # connect to the engine3 database
+    #        paste0("amelia_", as.character(i)), # the name of the table should be the combo of amelia_i
+    #        df, # should be the current df
+    #        overwrite = TRUE # overwrite this if the table by the current name already exists
+    #    )
+    #}
+    #for (i in 1: datasets) {
+    #    df <- lmice[[i]] # take each dataframe from the lmice list
+    #    dbWriteTable( # and write each to a table
+    #        engine3, # connect to the engine3 database
+    #        paste0("lmice_", as.character(i)), # the name of the table should be the combo of lmice_i
+    #        df, # should be the current df
+    #        overwrite = TRUE # overwrite this if the table by the current name already exists
+    #    )
+    #}
+    #for (i in 1: datasets) {
+    #    df <- rfmice[[i]] # take each dataframe from the rfmice list
+    #    dbWriteTable( # and write each to a table
+    #        engine3, # connect to the engine3 database
+    #        paste0("rfmice_", as.character(i)), # the name of the table should be the combo of rfmice_i 
+    #        df, # should be the current df
+    #        overwrite = TRUE # overwrite this if the table by the current name already exists
+    #    )
+    #}
+    #for (i in 1: datasets) {
+    #    df <- data.frame( # store each object from the rfranger list into a dataframe
+    #        rfranger[[i]]
+    #    ) 
+    #    dbWriteTable( # and write each to a table
+    #        engine3, # connect to the engine3 database
+    #        paste0("rfranger_", as.character(i)), # the name of the table should be the combo of rfranger_i
+    #        df, # should be the current df
+    #        overwrite = TRUE # overwrite this if the table by the current name already exists
+    #    )
+    #}
 }
 ```
 
@@ -649,26 +585,31 @@ Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s =
 
 ```{r}
 #| label: calculating-average-discrepancies
-        #** Mean
-interpolate_diff <- discrepancy( # calculate the value-wise discrepancy
-    procedure = "interpolate" # for the interpolate procedure
+
+discrepancyList <- lapply(
+    procedureName
+    ,discrepancy
 )
-        #** Amelia
-amelia_diff <- discrepancy( # calculate the value-wise discrepancy
-    procedure = "amelia" # for the amelia procedure
-)
-        #** LMice
-lmice_diff <- discrepancy( # calculate the value-wise discrepancy
-    procedure = "lmice" # for  the lmice procedure
-)
-        #** RFMice
-rfmice_diff <- discrepancy(# calculate the value-wise discrepancy
-    procedure = "rfmice" # for the rfmice procedure
-)
-        #** RFRanger
-rfranger_diff <- discrepancy(# calculate the value-wise discrepancy
-    procedure = "rfranger" # for the rfranger procedure
-)
+#        #** Mean
+#interpolate_diff <- discrepancy( # calculate the value-wise discrepancy
+#    procedure = "interpolate" # for the interpolate procedure
+#)
+#        #** Amelia
+#amelia_diff <- discrepancy( # calculate the value-wise discrepancy
+#    procedure = "amelia" # for the amelia procedure
+#)
+#        #** LMice
+#lmice_diff <- discrepancy( # calculate the value-wise discrepancy
+#    procedure = "lmice" # for  the lmice procedure
+#)
+#        #** RFMice
+#rfmice_diff <- discrepancy(# calculate the value-wise discrepancy
+#    procedure = "rfmice" # for the rfmice procedure
+#)
+#        #** RFRanger
+#rfranger_diff <- discrepancy(# calculate the value-wise discrepancy
+#    procedure = "rfranger" # for the rfranger procedure
+#)
 ```
 
 ```{r}
@@ -835,101 +776,6 @@ For readers not familiar with this notation, @eq-regression essentially describe
 
 In the codeblock below, I provide an example of how to take the output `dfImputation` from the example codeblock above and pool the regression results across the imputed data generated from each tool. I demonstrate how to do this with the `lm` function which fits a Ordinary Least Squares regression and with the `brms_multiple` function which fits a Bayesian equivalent to the Ordinary Least Squares regression when using the default uniform priors.
 
-```{.r}
-#| label: codeblock-example-of-regression
-#| echo: true
-#| eval: false
-
-# Install packages
-install.packages("brms") # for bayesian regression models
-install.packages("miceadds") # for converting Amelia outputs
-
-# Load libraries
-library(brms)
-library(miceadds)
-
-# Listwise deletion
-    #* With the lm command
-regression <- lm(
-    formula = Y ~ X + Z # Y is the dependent variable with X and Z as predictors
-    , data = dfImputed # use the imputed data
-)
-    #* With brms
-regression <- brms_multiple(
-    formula = Y ~ X + Z # Y is the dependent variable with X and Z as predictors
-    , data = dfImputed # use the imputed data
-)
-
-# Interpolation
-    #* with the lm command
-regression <- pool(
-    with(
-        data = dfImputed # use the imputed data
-        , exp = lm(Y ~ X + Z) # Y is the dependent variable with X and Z as predictors
-    )
-) # pool across each of the imputed datasets
-    #* With brms
-regression <- brms_multiple(
-    formula = Y ~ X + Z # Y is the dependent variable with X and Z as predictors
-    , data = dfImputed # use the imputed data
-)
-
-# Amelia
-    #* with the lm command
-regression <- pool(
-    with(
-        data = datlist2mids(dfImputed$imputations) # use the imputed data
-        , exp = lm(Y ~ X + Z) # Y is the dependent variable with X and Z as predictors
-    )
-) # pool across each of the imputed datasets
-    #* With brms
-regression <- brms_multiple(
-    formula = Y ~ X + Z # Y is the dependent variable with X and Z as predictors
-    , data = datlist2mids(dfImputed$imputations) # use the imputed data
-)
-
-# Linear bayesian mice
-    #* with the lm command
-regression <- pool(
-    with(
-        data = dfImputed # use the imputed data
-        , exp = lm(Y ~ X + Z) # Y is the dependent variable with X and Z as predictors
-    )
-) # pool across each of the imputed datasets
-    #* With brms
-regression <- brms_multiple(
-    formula = Y ~ X + Z # Y is the dependent variable with X and Z as predictors
-    , data = dfImputed # use the imputed data
-)
-
-# RF-MICE with mice package
-    #* with the lm command
-regression <- pool(
-    with(
-        data = dfImputed # use the imputed data
-        , exp = lm(Y ~ X + Z) # Y is the dependent variable with X and Z as predictors
-    )
-) # pool across each of the imputed datasets
-    #* With brms
-regression <- brms_multiple(
-    formula = Y ~ X + Z # Y is the dependent variable with X and Z as predictors
-    , data = dfImputed # use the imputed data
-)
-
-# RF-MICE with the miceRanger package
-    #* with the lm command
-regression <- pool(
-    with(
-        data = completeData(dfImputed) # use the imputed data
-        , exp = lm(Y ~ X + Z) # Y is the dependent variable with X and Z as predictors
-    )
-) # pool across each of the imputed datasets
-    #* With brms
-regression <- brms_multiple(
-    formula = Y ~ X + Z # Y is the dependent variable with X and Z as predictors
-    , data = completeData(dfImputed) # use the imputed data
-)
-```
 
 ```{r}
 #| label: regression-discrepancies
