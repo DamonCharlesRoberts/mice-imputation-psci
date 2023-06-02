@@ -1,0 +1,11 @@
+Package: RFImputation
+Title: Academic project on RF-MICE in PSCI
+Version: 0.0.0.9000
+Authors@R: 
+    person("Damon", "Roberts", , "damon.charles.roberts@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-4360-3675"))
+Description: This is a academic project providing a primer to political scientists about the use of random forest models in MICE procedures to handle their missing data problems. I "packaged" the code in this project for academics to be able to replicate this project..
+License: use_ccby_license()
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3

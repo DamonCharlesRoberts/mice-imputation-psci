@@ -48,6 +48,7 @@ impute <- function (
         Amelia::amelia(
           x
           , m = m
+          , p2s = 0
         ) #impute the data with amelia
       }
     ) # run the specified function for the dataset across `dataset` column factors
