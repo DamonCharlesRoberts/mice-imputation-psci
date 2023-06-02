@@ -1,167 +1,185 @@
-#' calculate the discrepancy for a single sample
+#' @title calculate discrepancies
+#' 
+#' @description 
+#' This is a function that calculates the discrepancy between either
+#' the imputed data or the beta coefficients relative to the full
+#' data or parameters
+#' 
+#' @details
+#' Requires a data.table object of the full sample data, and the imputed data
+#' Need to also specify the procedure and whether I want to calculate
+#' the discrepancy for the model or not.
+#' 
+#' @param sample_data a data.table object of the original sample data
+#' @param imputed_data a list of data.table objects with the imputed data
 #' @param procedure the procedure used
 #' @param model is it the discrepancy for a model or not
-#' @param num should be equal to the number of samples generated
-single_discrepancy <- function (
-    procedure="interpolation"
-    ,model=FALSE
-    ,num=1
+#' @param ct_type whether to use the mean or median function
+#' 
+#' @returns df_discrepancy A data.table object of the discrepancies
+#' 
+#' @examples
+#' df <- discrepancy(
+#'   sample_data = df_sample
+#'   , imputed_data = df_imputed
+#'   , procedure = "interpolation"
+#'   , model = FALSE
+#'   , ct_type = mean
+#' )
+#' 
+#' @export
+discrepancy <- function (
+  sample_data=NULL
+  ,imputed_data=NULL
+  ,procedure="interpolation"
+  ,model=FALSE
+  ,ct_type = mean
 ) {
-    # Define the table name string
-    dfQuery <- base::paste0(
-        procedure
-        ,"_"
-        ,base::as.character(num)
-        ,sep=""
+  # Get imputed data based on pre-specified procedure
+  #  #* bind the datasets of the same imputation procedure
+  #  #* and record the dataset in the dataset column
+  df_imputed_data <- imputed_data[procedure == procedure]
+  #df_imputed_data <- df_imputed_data[
+  #    , dataset := as.integer(dataset) # convert dataset column to integer
+  #]
+  sample_data <- sample_data[
+    , dataset := base::as.integer(dataset)
+  ]
+    #* filter the original data for the rows that have the same id value across both datasets
+  df_shortened_sample <- sample_data[sample_data$id %in% df_imputed_data$id]
+    #* Define the variables to focus on
+  list_variables <- c(
+    "X"
+    , "Y"
+    , "Z"
+  )
+  # If just looking at raw data, calculate discrepancy
+  if (model == FALSE) {
+    # calculate the mean/median difference between original and imputed
+      #* join the original data to the imputed data
+    df_joined <- df_shortened_sample[
+        imputed_data
+        , on = c(
+          "id"
+          , "dataset"
+        )
+    ]
+      #* subtract the original values from the imputed values
+    df_discrepancy <- data.table::data.table(
+        df_joined[, "id"]
+        , df_joined[, "dataset"]
+        , df_joined[, "imputations"]
+        , df_joined[, "X"] - df_joined[, "i.X"]
+        , df_joined[, "Z"] - df_joined[, "i.Z"]
+        , df_joined[, "Y"] - df_joined[, "i.Y"]
     )
-    # Define the connection
-    if (procedure == "amputed") {
-        altEngine <- engine2
+      #* if mean, calculate the mean of the discrepancy
+    if (ct_type == "mean") {
+        df_discrepancy <- df_discrepancy[
+            , base::lapply(
+                .SD
+                , mean
+            )
+            , .SDcols = list_variables
+            , by = dataset
+        ]
     } else {
-        altEngine <- engine3
-    }
-    # If just looking at raw data, calculate discrepancy
-    if (model == FALSE) {
-        # Query the amputed data
-        amputedDF <- data.table::as.data.table(
-            DBI::dbGetQuery(
-                alt_engine
-                ,base::paste0(
-                    "SELECT * FROM"
-                    ,dfQuery
-                    ,sep=""
-                )
-            )
-        )
-        # Query the original data
-        originalDF <- data.table::as.data.table(
-            DBI::dbGetQuery(
-                engine
-                ,base::paste0(
-                    "SELECT * FROM original_"
-                    ,base::as.character(num-1)
-                    ,sep=""
-                )
-            )
-        )
-        # calculate the mean difference between original and imputed
-            #* Define the variables to focus on
-        variables <- c("X","Y","Z")
-            #* for each variable...
-            #* ... calculate the row-wise difference
-        originalMedian <- originalDF[
-            ,lapply(
+      #* if median, calculate the median of the discrepancy
+        df_discrepancy <- df_discrepancy[
+            , base::lapply(
                 .SD
-                ,median
-                ,na.rm=TRUE
+                , median
             )
-        ]
-        amputedMedian <- amputedDF[
-            ,lapply(
-                .SD
-                ,median
-                ,na.rm=TRUE
-            )
-        ]
-        discrepancyDF <- data.table::as.data.table(
-            lapply(
-                variables
-                ,function (x) {
-                    amputedMedian[,..x]-originalMedian[,..x]
-                }
-            )
-        )
-    } else if (model==TRUE) {
-        # calculate the median posterior value
-        medianPosterior <- base::lapply(
-            1:10
-            , function(x) {
-                if (procedure == "rfranger") {
-                    query <- base::paste0(
-                        "SELECT * FROM "
-                        ,dfQuery
-                        ,"WHERE dataset = 'Dataset_"
-                        ,base::as.character(x)
-                        ,"'"
-                        ,sep=""
-                    )
-                } else {
-                    query <- base::paste0(
-                        'SELECT * FROM '
-                        ,dfQuery
-                        ,'WHERE ".id" = '
-                        ,base::as.character(x)
-                        ,sep=""
-                    )
-                }
-                df <- DBI::dbGetQuery(
-                    alt_engine
-                    ,query
-                )
-                # keep only complete cases
-                dfComplete <- df[stats::complete.cases(df),]
-                # convert the data.frame to a list
-                dfCompleteList <- base::list(
-                    N = base::nrow(dfComplete)
-                    ,x=dfComplete[,"X"]
-                    ,z=dfComplete[,"Z"]
-                    ,y=dfComplete[,"Y"]
-                )
-                # Fit the stan model
-                fitted <- rstan::sampling(
-                    compiled
-                    ,dfCompleteList
-                    ,chains=1
-                    ,iter=100
-                )
-                # take the median of the posterior
-                medianPosterior <- data.table::as.data.table(
-                    fitted
-                    )[
-                        ,lapply(.SD, median)
-                    ]
-            }
-        )
-        medianPosteriorDF <- data.table::rbindlist(medianPosterior)
-        differenceDF <- data.table::data.table(
-            X = medianPosteriorDF$X - 0.6
-            ,Z = medianPosteriorDF$Z - 0.9
-        )
-        discrepancyDF <- differenceDF[
-            ,lapply(
-                .SD
-                ,median
-            )
+            , .SDcols = list_variables
+            , by = dataset
         ]
     }
-
-}
-
-define_query <- function (
-    procedure = "interpolation"
-    ,model=FALSE
-    ,i
-) {
-    # Define the table name string
-    dfQuery <- paste0(
-        procedure
-        ,"_"
-        ,as.character(i)
-        ,sep=""
+    # return the discrepancy data.table
+    return(df_discrepancy)
+  } else if (model==TRUE) {
+    # Keep only complete cases
+    df_imputed_complete <- df_imputed_data[
+        stats::complete.cases(df_imputed_data)
+        ,
+    ]
+    # Convert to a list where each element is a dataset data.table
+    list_datasets <- base::split(
+        df_imputed_complete
+        , by = c("dataset")
     )
-
-    # Define the engine
-    if (procedure == "amputed") {
-        alt_engine <- engine2
+    # Run ols on each element of that list
+    fit <- base::lapply(
+      list_datasets,
+      function (x) {
+        # convert each dataset into an imputationList
+        list_imp_temp <- mitools::imputationList(
+          base::split(
+            x, x$imputations[-1]
+          )
+        )
+        # fit a OLS regression to eahc imputationList element
+        fit_temp <- base::with(list_imp_temp, stats::lm(Y ~ X + Z))
+        # pool the OLS regressions across each dataset
+        pooled_temp <- mitools::MIcombine(fit_temp)
+        # return the pooled results of the OLS model
+        return(pooled_temp)
+      }
+    )
+    # Convert to data.table object
+    df_tidy <- base::lapply(
+      fit,
+      function (x) {
+        # make the pooled coefficients a data.frame
+        df_pooled <- base::data.frame(
+          x[1]$coefficients
+        )
+        # flip the data.frame
+        df_pooled_tidy <- data.table::transpose(
+          df_pooled
+        )
+        # set the row names to the column names after transposing
+        df_pooled_tidy <- stats::setNames(
+          df_pooled_tidy
+          , base::rownames(df_pooled)
+        ) |>
+        data.table::as.data.table()
+        df_pooled_short <- df_pooled_tidy[
+            , `(Intercept)` := NULL
+         ]
+      }
+    )
+    # Combine all of the pooled results into a data.table
+    df_tidy <- data.table::rbindlist(
+      df_tidy
+      ,id="dataset"
+    )
+    # subtract the estiamted coefficients from the parameters
+    df_difference <- data.table::data.table(
+        dataset = df_tidy$dataset
+        , X = df_tidy$X - 0.6
+        , Z = df_tidy$Z - 0.9
+    )
+    # if mean, calculate the mean discrepancy
+    if (ct_type == "mean") {
+       df_discrepancy <- df_difference[
+        , base::lapply(
+          .SD
+          , mean
+        )
+        , .SDcols = list_variables[-2]
+        , by = dataset
+       ]
+    # if median, calculate the median discrepancy
     } else {
-        alt_engine <- engine3
+       df_discrepancy <- df_difference[
+        , base::lapply(
+            .SD
+            , median
+        )
+        , .SDcols = list_variables[-2]
+        , by = dataset
+       ]
     }
-
-    # Execute the query
-        
-
-}
-
-discrepancy <- function () {
-
+  }
+  return(df_discrepancy)
 }

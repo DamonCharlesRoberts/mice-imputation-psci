@@ -33,8 +33,9 @@ def create_iter_table(data_frame, name_append, engine, i):
     -----
     Commits a list of pl.DataFrame objects to a duckdb file
     """
-     # add the name and the dataframe number
+    # Convert the polars dataframe to an arrow object
     data = data_frame.to_arrow()
+    # add the name and the dataframe number
     name = str(name_append) + "_" + str(i)
     # add to table
     engine.execute("CREATE OR REPLACE TABLE " + name + " AS SELECT * FROM data")
@@ -55,24 +56,26 @@ def simulate(num_obs, samples = 1000):
     -----
     A list of pl.DataFrame objects
     """
-    # N
+    # N = size of population
     N = 1000000
     # calculate data
     a = np.random.gamma(2, 2, N)
     b = np.random.binomial(1, 0.6, N)
-    x = 0.2 * a + 0.5 * b + np.random.normal(0, 1, N)
-    z = 0.9 * a * b + np.random.normal(0, 1, N)
-    y = 0.6 * x + 0.9 * z + np.random.normal(0, 1, N)
+    x = 0.2 * a + 0.5 * b + np.random.normal(0, 10, N)
+    z = 0.9 * a * b + np.random.normal(0, 10, N)
+    y = 0.6 * x + 0.9 * z + np.random.normal(0, 10, N)
     # add these data to a pd.DataFrame
     pop_data_frame = pl.DataFrame({
         'A':a,
         'B':b,
         'X':x,
         'Z':z,
-        'Y':y
-                               })
+        'Y':y,
+        'id': range(1, N+1)
+    })
+    # Get my specified number of samples from this population data
     data_frame = list(repeat(pop_data_frame.sample(n = num_obs), samples))
-    # return the data_frame
+    # return the sample and population dataframes
     return pop_data_frame, data_frame
 
 def ampute(data_frame, perc, random_state):
@@ -94,59 +97,65 @@ def ampute(data_frame, perc, random_state):
     -----
     A list of pl.DataFrame objects
     """
-    # rename the data_frame obj
+    # grab the id column and turn it into a series object
+    id_series = data_frame.get_column("id")
+    # exclude the id column from the dataframe to be amputed
+    data_frame = data_frame.select(pl.exclude("id"))
+    # convert the dataframe into a pandas object
     original = data_frame.to_pandas()
     # use produce_na to introduce missingness
     amputed = mf.utils.ampute_data(original, perc = perc, random_state = random_state)
-    # take missing data and put in pd.DataFrame
-    data_frame = pl.DataFrame(amputed, columns = ['A', 'B', 'X', 'Z', 'Y'])
+    # take missing data and put in polars.DataFrame
+    data_frame = pl.DataFrame(amputed, schema = ['A', 'B', 'X', 'Z', 'Y'])
+    # merge the id series back into the dataframe
+    data_frame = data_frame.insert_at_idx(0, id_series)
     # return the dataframe
     return data_frame
 
-def distplot(input_list,names,colors):
-    """
-    Transform the data into a list of lists to then feed into a plotly distplot
-
-    Parameters
-    ----
-    - list: list object containing polars objects
-    - names: list of dataset names
-    - colors: list of hex values
-
-    Returns
-    ----
-    plt.create_dist object
-    """
-    # convert list of dataframes into a list of lists
-    list_o_list = [[c.to_list() for c in i] for i in input_list]
-
-    ## grab the list elements for each variable of interest
-    x_list = [x[2] for x in list_o_list]
-    z_list = [x[3] for x in list_o_list]
-    y_list = [x[4] for x in list_o_list]
-    ## Make plot wit it
-    fig_x = ff.create_distplot(
-        x_list,
-        names,
-        colors=colors,
-        show_hist=False,
-        show_rug=False
-    )
-    fig_z = ff.create_distplot(
-        z_list,
-        names,
-        colors=colors,
-        show_hist=False,
-        show_rug=False
-    )
-    fig_y = ff.create_distplot(
-        y_list,
-        names,
-        colors=colors,
-        show_hist=False,
-        show_rug=False
-    )
-    return fig_x,fig_z,fig_y
+#def distplot(input_list,names,colors):
+#    """
+#    Transform the data into a list of lists to then feed into a plotly distplot
+#
+#    Parameters
+#    ----
+#    - list: list object containing polars objects
+#    - names: list of dataset names
+#    - colors: list of hex values
+#
+#    Returns
+#    ----
+#    plt.create_dist object
+#    """
+#    # convert list of dataframes into a list of lists
+#    list_o_list = [[c.to_list() for c in i] for i in input_list]
+#
+#    ## grab the list elements for each variable of interest
+#    x_list = [x[2] for x in list_o_list]
+#    z_list = [x[3] for x in list_o_list]
+#    y_list = [x[4] for x in list_o_list]
+#    ## Make plot wit it
+#    fig_x = ff.create_distplot(
+#        x_list,
+#        names,
+#        colors=colors,
+#        show_hist=False,
+#        show_rug=False
+#    )
+#    fig_z = ff.create_distplot(
+#        z_list,
+#        names,
+#        colors=colors,
+#        show_hist=False,
+#        show_rug=False
+#    )
+#    fig_y = ff.create_distplot(
+#        y_list,
+#        names,
+#        colors=colors,
+#        show_hist=False,
+#        show_rug=False
+#    )
+#    return fig_x,fig_z,fig_y
 #def transformation(data_frames, datasets):
 #    """
 #    Transform the data from list of pl.DataFrames to pl.DataFrame for graphing

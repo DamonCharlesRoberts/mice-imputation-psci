@@ -63,9 +63,9 @@ params:
     reproduce: false
 ---
 
+<!--
 ```{python}
 #| tags: [parameters]
-
 reproduce = "false"
 ```
 
@@ -79,55 +79,65 @@ import numpy as np
 import duckdb as db
 import polars as pl
     #* user defined
-from PY.helper import simulate, ampute, create_iter_table, distplot
+from PY.helper import simulate, ampute, create_iter_table
 # Seed
-np.random.seed(12102022)
+np.random.seed(90210)
 # Loop parameters
 n: int=100
 datasets: int=1000
 m: int=10
 ```
-
+-->
 ```{r}
 #| label: simulation-r-setup-block
 
 # Set seed  
-set.seed(12102022)
+set.seed(90210)
 # Modularly load required functions
 box::use(
-    doParallel[...]
-    ,DBI[
-        dbConnect
-        ,dbDisconnect
-        #,dbGetQuery, dbWriteTable
-    ]
-    ,duckdb[
-        duckdb
-    ], #needs to be version 0.6.1 for both R and python
-    #mice = mice[ampute, pool, complete, mice],
-    #miceRanger = miceRanger[miceRanger],
-    #data.table = data.table[data.table],
-    #Amelia = Amelia[amelia],
-    tictoc = tictoc[...],
-    #dplyr = dplyr[select, filter, bind_rows],
-    #tibble = tibble[tibble],
-    #ggplot2 = ggplot2[ggplot, geom_density, aes, theme_minimal, labs, geom_boxplot, ggsave],
-    #rstan = rstan[...]
-    ,./R/organize_data[
-        organize_data
-    ]
-    ,./R/sim_ridgeline[
-        sim_ridgeline
-    ]
-    ,./R/impute[
-        impute
-    ]
+  ,DBI[
+    dbConnect
+    ,dbDisconnect
+    #,dbGetQuery, dbWriteTable
+  ]
+  ,duckdb[
+    duckdb
+  ], #needs to be version 0.6.1 for both R and python
+  #mice = mice[ampute, pool, complete, mice],
+  #miceRanger = miceRanger[miceRanger],
+  #data.table = data.table[data.table],
+  #Amelia = Amelia[amelia],
+  tictoc = tictoc[...],
+  #dplyr = dplyr[select, filter, bind_rows],
+  #tibble = tibble[tibble],
+  ggplot2 = ggplot2[
+    ggplot
+    ,geom_density
+    ,aes
+    ,theme_minimal
+    ,labs
+    ,geom_boxplot
+  ],
+  #rstan = rstan[...]
+  ,./R/simulate[
+    simulate
+  ]
+  ,./R/organize_data[
+    organize_data
+  ]
+  ,./R/sim_ridgeline[
+    sim_ridgeline
+  ]
+  ,./R/impute[
+    impute
+  ]
+  ,./R/discrepancy[discrepancy]
 )
 require(data.table)# for miceRanger
 
 # Setup parallelization
 cores <- parallel::detectCores()
-registerDoParallel(cores=cores)
+#registerDoParallel(cores=cores)
 ## rstan options
 #options(mc.cores = parallel::detectCores())
 #rstan_options(auto_write = TRUE)
@@ -135,6 +145,7 @@ registerDoParallel(cores=cores)
 ## Load user defined functions
 #source("helper.R")
 # Loop parameters
+N <- 1000000 # size of population data
 n <- 100 # size of each sample
 datasets <- 1000 # size of number of samples
 
@@ -156,7 +167,7 @@ Missing values are common in social science data. @king_et-al_2001_apsr estimate
 
 [^1]: Which is a common occurrence, more so than missingness caused entirely by random chance - which, if one meets this condition, gives unbiased estimates with LWD.
 
-As this poses a serious threat to our ability to make conclusions about causal processes, several political scientists generate tools and learn from other fields to deal with these challenges due to the severity of the consequences for inference. There are four primary approaches that political scientists use in dealing with missing data: (1) listwise deletion or complete case analysis (LWD), (2) simple mean or median based imputation, (3) hot deck or regression-based imputation, or (4) multiple imputation (MI). Many of the most popular approaches to imputation carry assumptions that scholars have to satisfy. This manuscript aims to provide a primer to political scientists on the use of machine learning models in the Multiple Imputation with Chained Equations (`MICE`) framework - an extension of the familiar MI approach.
+As this poses a serious threat to our ability to make conclusions about causal processes, several political scientists generate tools and learn from other fields to deal with these challenges due to the severity of the consequences for inference. There are four primary approaches that political scientists use in dealing with missing data: (1) listwise deletion or complete case analysis (LWD), (2) simple mean or median based imputation, (3) single regression-based imputation, or (4) multiple imputation (MI). Many of the most popular approaches to imputation carry assumptions that scholars have to satisfy. This manuscript aims to provide a primer to political scientists on the use of machine learning models in the Multiple Imputation with Chained Equations (`MICE`) framework - an extension of the familiar MI approach.
 
 Machine learning with `MICE` is not a new approach. While a JSTOR search of Political Science journals reports a handful of articles that discuss this particular approach, it is certainly not widely used by political scientists nor has it received much accessible discussion of how it works under the hood.[^2]
 
@@ -176,7 +187,7 @@ The next section reviews common approaches handling missing data that political 
 
 ## MCAR, MAR, and MNAR
 
-Missing data arise in different forms. Researchers describe missing data in three ways - often using somewhat unintuitive acronyms. The first form missing data takes is Missing Completely At Random (`MCAR`). This means that the data generating process for the missingness is random - there are no observed or unobserved causes of missingness. The second form missing data takes is Missing At Random (`MAR`). In `MAR`, these data are missing due to some observed cause. However, they are "Missing at Random" once you account for that observed cause of missingness. Some argue that `MAR` is much more common given the state of how large most contemporary social science data sets are [@schunk_2008_atsa]. The third form that missing data take is Missing Not At Random (`MNAR`)[^3]. `MNAR` happens when observed and unobserved causes explain the missingness. What distinguishes `MNAR` from `MAR` is that the researcher does not have a clear path forward to handle the cause of missingness. This occurs either because the variable where there is missingness is, itself, a cause of the missingness, or data explaining the cause of missingness is unobserved by the researcher. Since missing data take different forms, researchers use a few different approaches to deal with these challenges. I summarize the types of missing data problems there are and their potential ramifications in @tbl-summary-missing-processes and the common tools used to solve these problems in @tbl-summary-missing-solutions.
+Missing data arise in different forms. Researchers describe missing data in three ways - often using somewhat unintuitive acronyms. The first form missing data takes is Missing Completely At Random (`MCAR`). This means that the data generating process for the missingness is random - there are no observed or unobserved causes of missingness. The second form missing data takes is Missing At Random (`MAR`). In `MAR`, these data are missing due to some observed cause. However, they are "Missing at Random" once you account for that observed cause of missingness. Some argue that `MAR` is much more common given the state of how large most contemporary social science data sets are [@schunk_2008_atsa]. The third form that missing data take is Missing Not At Random (`MNAR`).[^3] `MNAR` happens when observed and unobserved causes explain the missingness. What distinguishes `MNAR` from `MAR` is that the researcher does not have a clear path forward to handle the cause of missingness. This occurs either because the variable where there is missingness is, itself, a cause of the missingness, or data explaining the cause of missingness is unobserved by the researcher. Since missing data take different forms, researchers use a few different approaches to deal with these challenges. I summarize the types of missing data problems there are and their potential ramifications in @tbl-summary-missing-processes and the common tools used to solve these problems in @tbl-summary-missing-solutions.
 
 [^3]: Sometimes called Non-ignorable (`NI`).
 
@@ -204,9 +215,9 @@ Like `LWD`, simple imputation techniques like mean-and-median-based imputation d
 
 Hot Deck approaches to imputing missingness are regression-based in that they define the dependent variable as the one the researcher is attempting to impute and use variables thought to predict the cause of missingness in `MAR` contexts [@schunk_2008_atsa]. In this approach, you often use a few variables to condition on. In many cases, the precise mechanism generating missingness is often tricky to triangulate. As a result, if you fail to provide the correct model specification when the data are `MAR`, you often end up with biased regression estimates.
 
-`MI` seeks to solve this issue by using the entire dataset for imputing missing values [@rubin_1996_jasa]. This approach uses the other variables in the dataset to generate a joint posterior distribution of all possible missing values for that particular observation. Many assume that most social science data sets are sufficiently large enough to condition on the mechanism generating `MAR` [@schunk_2008_atsa]. Unlike the other approaches, `MI` also generates uncertainty around the imputed values - via its construction of the joint posterior distribution [@rubin_1996_jasa] - which enables the researcher to be more transparent about the validity of those imputed values and to include that uncertainty in the researcher's subsequent statistical analyses [@king_et-al_2001_apsr; @von-hippel_2015_semmj]. A prevalent implementation of `MI` in political science is the `AMELIA II` software [@amelia; @honaker_et-al_2011_jss; @lall_2016_pa]. This useful tool provides a computationally fast and simple process for imputation. Compared to the other approaches to missing data, `AMELIA II` performs quite well [@honaker_et-al_2011_jss; @kropko_et-al_2014_pa]. `MI`, however, often requires a set of distributional assumptions for the joint distribution - often the multivariate normal [@honaker_et-al_2011_jss]. Another challenge with this tool is that it runs up with the curse of dimensionality -- if you are asking for more information by using more variables than you have observations, many non-regularized models will provide inaccurate estimates.
+`MI` seeks to solve this issue by using the entire dataset for imputing missing values [@rubin_1996_jasa]. This approach uses the other variables in the dataset to generate a joint posterior distribution of all possible missing values for that particular observation. Many assume that most social science data sets are sufficiently large enough to condition on the mechanism generating `MAR` [@schunk_2008_atsa]. Unlike the other approaches, `MI` also generates uncertainty around the imputed values - via its construction of the joint posterior distribution [@rubin_1996_jasa] - which enables the researcher to be more transparent about the validity of those imputed values and to include that uncertainty in the researcher's subsequent statistical analyses [@king_et-al_2001_apsr; @von-hippel_2015_semmj]. A prevalent implementation of `MI` in political science is the `AMELIA II` software [@amelia; @honaker_et-al_2011_jss; @lall_2016_pa]. This useful tool provides a computationally fast and simple process for imputation by taking advantage of bootstrapping with the EMB algorithm. Compared to the other approaches to missing data, `AMELIA II` performs quite well [@honaker_et-al_2011_jss; @kropko_et-al_2014_pa]. `MI`, however, often requires a set of distributional assumptions for the joint distribution - often the multivariate normal [@honaker_et-al_2011_jss]. Another challenge with this tool is that it runs up with the curse of dimensionality -- if you are asking for more information by using more variables than you have observations, many non-regularized models will provide inaccurate estimates.
 
-There is a variant to `MI` that seeks more computational efficiency and loosens some of the distributional assumptions required. This variant is called Multiple Imputation through Chained Equations (`MICE`). `MICE` performs quite well for large imputation tasks. `MI` struggles to impute values when there is missingness in the other variables of the dataset [@kropko_et-al_2014_pa] - which is quite common. Though not reliant on a multivariate normal distribution, Conditional `MI` still relies on general linear models (GLM) in calculating the values. `MICE` tries to get around this limitation in a few steps, as described by @azur_et-al_2011_ijmpr. @fig-process provides a visual representation of the procedure for a form of `MICE` used in this manuscript. I include more details about random forest models in the following subsection.
+There is a variant to `MI` that seeks more computational efficiency and loosens some requirements. This variant is called Multiple Imputation through Chained Equations (`MICE`). `MICE` performs quite well for large imputation tasks. `MI` struggles to impute values when there is missingness in the other variables of the dataset as it estimates imputed variables based on the joint distribution as opposed to focusing each imputation by optimizing predictions for each variable [@kropko_et-al_2014_pa]. `MICE` tries to get around this limitation in a few steps, as described by @azur_et-al_2011_ijmpr. @fig-process provides a visual representation of the procedure for a form of `MICE` used in this manuscript. I include more details about random forest models in the following subsection.
 
 ```{mermaid}
 %%| label: fig-process
@@ -220,11 +231,11 @@ C --> D[Random forest model to impute predicted values]
 D --> |Repeat for each variable| C
 ```
 
-First, `MICE` performs a simple imputation, or interpolation, for every missing value in the entire dataset. These are the placeholder values. The second step in the general `MICE` paradigm involves identifying one variable to impute. Once complete, it then removes those placeholder values. The third step then involves regressing the observed values of the variable on the other variables in the model and replacing the predicted values generated from the regression model for the missing values. The fourth step is to repeat steps two and three for each variable in the data set with missing values - this constitutes a single iteration. As a fifth step, you perform between five and ten iterations[^4].
+First, `MICE` performs a simple imputation, or interpolation, for every missing value in the entire dataset. These are the placeholder values. The second step in the general `MICE` paradigm involves identifying one variable to impute. Once complete, it then removes those placeholder values. The third step then involves regressing the observed values of the variable on the other variables in the model and replacing the predicted values generated from the regression model for the missing values. The fourth step is to repeat steps two and three for each variable in the data set with missing values - this constitutes a single iteration. As a fifth step, you perform between five and ten iterations.[^4]
 
 [^4]: Though, the exact number of recommended iterations used in `MICE` are still up for debate [see @buuren_goothuis-oudshoorn_2011_jss; @azur_et-al_2011_ijmpr]. The recommendation is that you elect to go with more iterations if not constrained by computational limitations.
 
-The advantage of this chained equation procedure is to estimate each variable as an outcome with its own regression model that is most appropriate for it. The regression models that one may use in `MICE` are as numerous as those a researcher may choose from when engaged in statistical analysis. This means that the assumptions and the performance of the model one uses for the imputation are the same as in standard statistical analyses. Though it decreases some of the requirements for modeling the `MAR` process, it is not entirely atheoretical. We can, however, reduce the dependence that the imputed data have on a researcher's ability to theorize about the `MAR` process by selecting models that are accustomed to dealing with a large number of parameters without increasing inefficiency.
+The advantage of this chained equation procedure is to estimate each variable as an outcome with its own regression model that is most appropriate for it. This means that the imputation task optimizes on each variable containing `MAR` data as opposed to optimizing the task for the whole dataset. Though `MI` as implemented in `AMELIA` is regression based,  the regression models that one may use in `MICE` are as numerous as those a researcher may choose from when engaged in statistical analysis. This means that the assumptions and the performance of the model one uses for the imputation are the same as in standard statistical analyses. Though it decreases some of the requirements for modeling the `MAR` process, it is not entirely atheoretical. We can, however, reduce the dependence that the imputed data have on a researcher's ability to theorize about the `MAR` process by selecting models that are accustomed to dealing with a large number of parameters without increasing inefficiency.
 
 One valuable model for allowing one to include a large number of parameters without losses to efficiency, is a form of ensemble machine learning model called Random Forests. As the following discussion highlights, random forest models are optimal for engaging in predictive tasks [see @montgomery_olivella_2018_ajps], which appears appropriate for the task of predicting missing values. These models have the additional benefit of not requiring a multivariate normal distribution, not requiring one to specify a potentially incorrect model of which variables are included in the `MAR` process, nor is it in the form of a `GLM`. That is, these models reduce some of the dependence of an imputation task on the researcher's beliefs about the source of the missingness. As researchers apply these random forest models within the `MICE` framework, they also benefit from the advantages that `MI` provide over the hot deck framework. Furthermore, machine learning models like ensemble procedures apply regularization to deal with highly dimensional datasets. These three features suggest that this procedure offers much more flexibility to the researcher.
 
@@ -294,6 +305,60 @@ $$ {#eq-sim-dgp}
 
 I then use the `polars` library [@polars] to generate 1000 random samples from the population with $n = 100$ for each sample. To introduce missingness into my data, I use the `miceforest` python library [@miceForest] to "ampute" 40% of the data for each of these samples with a `MAR` process. As one of the advantages of the `RF-MICE` procedure is to impute data generated from more complicated `MAR` processes, I ampute the data by constructing a logistic regression for each variable. Where the predicted value equals one, the corresponding observation is counted as missing [@miceForest]. For the reader, I use the `ggplot2` [@ggplot2] and `ggridges` [@ggridges] R packages to produce @fig-sim-dist and @fig-amputed-dist; which presents the distributions of data for the `X`, `Z`, and `Y` variables for my samples *before* amputation as well as the distribution of data for the `X`, `Z`, and `Y` variables for my samples *after* amputation. I would like to note, there are other ways I can perform the amputation of the data. The particular DGP of the missing data here is relatively simple relative to what we may have in real-world situations. However, given that `RF-MICE` is expected to perform better in situations with more complicated missing data patterns, the results of the simulated analyses may be an understatement of the differences in the reduction of bias between these different tools.
 
+```{r}
+#| label: simulate samples
+
+if (params$reproduce == "true") {
+  # Generate population data
+  popDF <- simulate(N=N)
+  # Generate 1000 random samples
+  samples <- infer::rep_sample_n(
+    tbl=popDF
+    ,size=n
+    ,replace=TRUE
+    ,reps=datasets
+  ) |>
+  as.data.table()
+  samples <- samples[
+    ,dataset:=factor(replicate)
+  ][
+    ,replicate:=NULL
+  ]
+  # store the population and sample data.frames
+  save(
+    popDF
+    ,samples
+    ,file="../data/sim_pop_and_samples.RData"
+  )
+} else {
+  load(
+    file="../data/sim_pop_and_samples.RData"
+  )
+}
+```
+
+```{r}
+#| label: ampute the data
+# split these up into a list of data.frames for amputation
+amputeList <- split(
+    samples
+    ,f=samples$dataset
+)
+# Perform the amputation on each of the samples
+amputedList <- lapply(
+    amputeList
+    , function(x) {
+        amputedDF <- miceRanger::amputeData(
+            data=x
+            ,perc=0.4
+            ,cols=c("X","Z","Y")
+        )
+    }
+)
+amputedDF <- data.table::rbindlist(amputedList)
+```
+
+<!--
 ```{python}
 #| label: simulated-generation-block
 
@@ -330,13 +395,12 @@ if reproduce == "true":
         create_iter_table(
             data_frame = data_frame,
             name_append = "amputed",
-            engine = engine2,
+            engine = amputed_connection,
             i = i
         )
 # Close connection
 amputed_connection.close()
 ```
-
 ```{r}
 #| label: load-simulated-samples
 
@@ -353,6 +417,7 @@ sample <- organize_data(
     ,con=sampleConnection
 )
 ```
+-->
 ```{r}
 #| label: fig-sim-dist
 #| layout-nrow: 1
@@ -364,17 +429,19 @@ sample <- organize_data(
 # Generate plots of samples
 samplePlots <- lapply(
     c("X", "Z", "Y")
-    ,sim_ridgeline
-    ,data=sample
-    ,type="original"
-    ,datasets=datasets
-    #,engine=sampleConnection
+    ,function (x) {
+        sim_ridgeline(
+            data=samples,
+            datasets=datasets,
+            var=x
+        )
+    }
 )
 samplePlots[[1]]
 samplePlots[[2]]
 samplePlots[[3]]
 ```
-
+<!--
 ```{r}
 #| label: load-amputed-data
 
@@ -390,6 +457,7 @@ amputed <- organize_data(
     ,con=amputedConnection
 )
 ```
+-->
 ```{r}
 #| label: fig-amputed-dist
 #| layout-nrow: 1
@@ -400,11 +468,13 @@ amputed <- organize_data(
 #|  - Y
 amputedPlots <- lapply(
     c("X", "Z", "Y")
-    ,sim_ridgeline
-    ,data=amputed
-    ,type="amputed"
-    ,datasets=datasets
-    #,engine=engine2
+    ,function (x) {
+        sim_ridgeline(
+            data=amputedDF,
+            datasets=datasets,
+            var=x
+        )
+    }
 )
 amputedPlots[[1]]
 amputedPlots[[2]]
@@ -420,164 +490,95 @@ When producing the imputed datasets, I use the `tictoc` package to record the am
 ```{r}
 #| label: r-imputations
 if (params$reproduce == "true") {
-    # Interpolation
-    tic.clearlog() # clear the log for tic
-    tic("Interpolate") # initialize time counter for Interpolate procedure
-    interpolate <- impute(
-        df=amputed
-        ,package="mice"
-        ,meth="mean"
-    )# perform interpolation imputation with mice package
-    toc(
-        log = TRUE
-        ,quiet = TRUE
-    )# document how much time it took for this to complete
+  # Interpolation
+  tic.clearlog() # clear the log for tic
+  tic("Interpolate") # initialize time counter for Interpolate procedure
+  interpolate <- impute(
+    df=amputedDF
+    ,package="mice"
+    ,meth="mean"
+  )# perform interpolation imputation with mice package
+  toc(
+    log = TRUE
+    ,quiet = TRUE
+  )# document how much time it took for this to complete
+  
+  # AMELIA
+  tic("Amelia") # initialize time counter for amelia procedure
+  amelia <- impute(
+    df=amputedDF
+    ,package="amelia"
+  )# perform amelia imputation
+  toc(
+    log = TRUE
+    ,quiet = TRUE
+  )# document how much time it took for this to complete
 
-    # AMELIA
-    tic("Amelia") # initialize time counter for amelia procedure
-    amelia <- impute(
-        df=amputed
-        ,package="amelia"
-    )# perform amelia imputation
-    toc(
-        log = TRUE
-        ,quiet = TRUE
-    )# document how much time it took for this to complete
+  # LMICE
+  tic("LMICE") # initialize time counter for linear mice procedure
+  lmice <- impute(
+    df=amputedDF
+    ,package="mice"
+    ,meth="norm"
+  )#perform imputation with linear mice
+  toc( 
+    log = TRUE
+    ,quiet = TRUE
+  )# document how much time it took for this to complete
 
-    # LMICE
-    tic("LMICE") # initialize time counter for linear mice procedure
-    lmice <- impute(
-        df=amputed
-        ,package="mice"
-        ,meth="norm"
-    )#perform imputation with linear mice
-    toc( 
-        log = TRUE
-        ,quiet = TRUE
-    )# document how much time it took for this to complete
+  # RFMICE
+  tic("RFMICE") # initialize time counter for rfmice procedure
+  rfmice <- impute(
+    df=amputedDF
+    ,package="mice"
+    meth="rf"
+  )# perform rfmice imputation with mice package
+  toc(
+    log = TRUE
+    ,quiet = TRUE
+  )# document how much time it took for this to complete
 
-    # RFMICE
-    tic("RFMICE") # initialize time counter for rfmice procedure
-    rfmice <- impute(
-        data=amputed
-        ,package="mice"
-        ,meth="rf"
-    )# perform rfmice imputation with mice package
-    toc(
-        log = TRUE
-        ,quiet = TRUE
-    )# document how much time it took for this to complete
+  #RFRanger
+  tic("RFRanger") # initialize time counter for rfmice procedure
+  rfranger <- impute(
+    df=amputedDF
+    ,package="miceRanger"
+  )# perform rfmice imputation with miceRanger package
+  toc(
+    log = TRUE
+    ,quiet = TRUE
+  )# document how much time it took for this to complete
 
-    #RFRanger
-    tic("RFRanger") # initialize time counter for rfmice procedure
-    rfranger <- impute(
-        data=amputed
-        ,package="miceRanger"
-    )# perform rfmice imputation with miceRanger package
-    toc(
-        log = TRUE
-        ,quiet = TRUE
-    )# document how much time it took for this to complete
+  # Store these into one list
+  imputedList <- list(
+    interpolate=interpolate
+    ,amelia=amelia
+    ,lmice=lmice
+    ,rfmice=rfmice
+    ,rfranger=rfranger
+  )
 
-    # Store these into one list
-    imputedList <- list(
-        interpolate
-        ,amelia
-        ,lmice
-        ,rfmice
-        ,rfranger
-    )
-
-    #Store timing info
-    log <- tictoc::tic.log(format = TRUE) |> # take the logged timing info and store it as a data.frame object
-        stringr::str_split( ": ", simplify = TRUE) |>
-        data.frame()
-    log$X2 <- as.double( # store it as an integer in the X2 column
-        gsub("[secelapsed]","",as.character(log$X2)) # remove the secelapsed prefix
-    ) 
-    setnames(  # set the column names
-        log, # of the log dataset
-        c("procedure","seconds") # to procedure and seconds
-    )
-        #* put it in a database
-    dbWriteTable(
-        engine4, # connect to the engine4 database
-        "benchmark", # name the table "benchmark"
-        log, # store the log data.frame
-        overwrite = TRUE # and if it already exists, overwrite it
-    )
-
-    # Store imputed data in database
-    procedureName <- c("interpolate", "amelia", "lmice", "rfmice", "rfranger")
-    procedureBoi <- c("interpolate", "amelia")
-
-    base::Map(
-        function(p,j) base::Map(
-            function(d,i) DBI::dbWriteTable(
-                engine3,
-                paste0(
-                    j
-                    ,as.character(i)
-                )
-                ,d
-                ,overwrite=TRUE
-            ),
-            d=p,
-            i=seq_along(p)
-        )
-        ,p=imputedList
-        ,j=procedureName
-    )
-    
-    DBI::dbGetQuery(engineTest, "SHOW tables;")
-
-    #for (i in 1: datasets) {
-    #    df <- interpolate[[i]] # take each dataframe from the interpolate list
-    #    dbWriteTable( # and write each to a table
-    #        engine3, # connect to the engine3 database
-    #        paste0("mean_", as.character(i)), # the name of the table should be the combo of mean_i
-    #        df, # should be the current df
-    #        overwrite = TRUE # overwrite this if the table by the current name already exists
-    #    )
-    #}
-    #for (i in 1: datasets) {
-    #    df <- amelia[[i]] # take each dataframe from the amelia list
-    #    dbWriteTable( # and write each to a table
-    #        engine3, # connect to the engine3 database
-    #        paste0("amelia_", as.character(i)), # the name of the table should be the combo of amelia_i
-    #        df, # should be the current df
-    #        overwrite = TRUE # overwrite this if the table by the current name already exists
-    #    )
-    #}
-    #for (i in 1: datasets) {
-    #    df <- lmice[[i]] # take each dataframe from the lmice list
-    #    dbWriteTable( # and write each to a table
-    #        engine3, # connect to the engine3 database
-    #        paste0("lmice_", as.character(i)), # the name of the table should be the combo of lmice_i
-    #        df, # should be the current df
-    #        overwrite = TRUE # overwrite this if the table by the current name already exists
-    #    )
-    #}
-    #for (i in 1: datasets) {
-    #    df <- rfmice[[i]] # take each dataframe from the rfmice list
-    #    dbWriteTable( # and write each to a table
-    #        engine3, # connect to the engine3 database
-    #        paste0("rfmice_", as.character(i)), # the name of the table should be the combo of rfmice_i 
-    #        df, # should be the current df
-    #        overwrite = TRUE # overwrite this if the table by the current name already exists
-    #    )
-    #}
-    #for (i in 1: datasets) {
-    #    df <- data.frame( # store each object from the rfranger list into a dataframe
-    #        rfranger[[i]]
-    #    ) 
-    #    dbWriteTable( # and write each to a table
-    #        engine3, # connect to the engine3 database
-    #        paste0("rfranger_", as.character(i)), # the name of the table should be the combo of rfranger_i
-    #        df, # should be the current df
-    #        overwrite = TRUE # overwrite this if the table by the current name already exists
-    #    )
-    #}
+  #Organize timing info into data.frame
+  log <- tictoc::tic.log(format = TRUE) |> # take the logged timing info and store it as a data.frame object
+    stringr::str_split( ": ", simplify = TRUE) |>
+    data.frame()
+  log$X2 <- as.double( # store it as an integer in the X2 column
+    gsub("[secelapsed]","",as.character(log$X2)) # remove the secelapsed prefix
+  ) 
+  setnames(  # set the column names
+    log, # of the log dataset
+    c("procedure","seconds") # to procedure and seconds
+  )
+  # Store info
+  save(
+    imputedList,
+    log,
+    file = "../data/sim_imputed_and_log.RData"
+  )
+} else {
+  load(
+    file = "../data/sim_imputed_and_log.RData"
+  )
 }
 ```
 
@@ -585,11 +586,23 @@ Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s =
 
 ```{r}
 #| label: calculating-average-discrepancies
-
+procedureName <- c("interpolate", "amelia", "lmice", "rfmice", "rfranger")
 discrepancyList <- lapply(
     procedureName
-    ,discrepancy
+    ,function(x) {
+        discrepancy(
+            sample_data=sample
+            ,imputed_data=imputedList
+            ,procedure=x
+            ,model=FALSE
+        )
+    }
 )
+base::names(discrepancyList) <- procedureName
+discrepancyDF <- data.table::rbindlist(discrepancyList, idcol = "procedure")
+discrepancyDF <- discrepancyDF[
+    ,procedure:=factor(procedure)
+]
 #        #** Mean
 #interpolate_diff <- discrepancy( # calculate the value-wise discrepancy
 #    procedure = "interpolate" # for the interpolate procedure
@@ -619,39 +632,39 @@ discrepancyList <- lapply(
 ggplot() +
     geom_boxplot(
         aes(
-            x = 'Mean',
-            y = mean_x
+            x = procedure,
+            y = X
         ),
-        data = interpolate_diff
+        data = discrepancyDF
     ) +
-    geom_boxplot(
-        aes(
-            x = 'AMELIA',
-            y = mean_x
-        ),
-        data = amelia_diff
-    ) + # boxplot for amelia procedure
-    geom_boxplot(
-        aes(
-            x = 'Linear MICE',
-            y = mean_x
-        ),
-        data = lmice_diff
-    ) + # boxplot for lmice procedure
-    geom_boxplot(
-        aes(
-            x = 'RF MICE',
-            y = mean_x
-        ),
-        data = rfmice_diff
-    ) + # boxplot for rfmice procedure with mice
-    geom_boxplot(
-        aes(
-            x = "RF Ranger",
-            y = mean_x
-        ),
-        data = rfranger_diff
-    ) + # boxplot for rfmice procedure with miceRanger
+    #geom_boxplot(
+    #    aes(
+    #        x = 'AMELIA',
+    #        y = mean_x
+    #    ),
+    #    data = amelia_diff
+    #) + # boxplot for amelia procedure
+    #geom_boxplot(
+    #    aes(
+    #        x = 'Linear MICE',
+    #        y = mean_x
+    #    ),
+    #    data = lmice_diff
+    #) + # boxplot for lmice procedure
+    #geom_boxplot(
+    #    aes(
+    #        x = 'RF MICE',
+    #        y = mean_x
+    #    ),
+    #    data = rfmice_diff
+    #) + # boxplot for rfmice procedure with mice
+    #geom_boxplot(
+    #    aes(
+    #        x = "RF Ranger",
+    #        y = mean_x
+    #    ),
+    #    data = rfranger_diff
+    #) + # boxplot for rfmice procedure with miceRanger
     theme_minimal() + # add the minimal theme
     labs(
         x = 'X',
