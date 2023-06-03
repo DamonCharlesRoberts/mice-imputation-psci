@@ -42,17 +42,18 @@ format:
         - isbn=false
         - uniquename=false
     citeproc: false
-    # Get word count
-    #filters:
-    #    - "../_extensions/andrewheiss/wordcount/citeproc.lua"
-    #    - "../_extensions/andrewheiss/wordcount/wordcount.lua"
+    geometry:
+      - top=1in
+      - bottom=1in
+      - left=1in 
+      - right=1in
 execute:
   echo: false
   message: false
   warning: false
   eval: true
 params:
-  reproduce: true
+  reproduce: false
 ---
 
 {{< pagebreak >}}
@@ -65,7 +66,7 @@ Missing values are common in social science data. @king_et-al_2001_apsr estimate
 
 As this poses a serious threat to our ability to make conclusions about causal processes, several political scientists generate tools and learn from other fields to deal with these challenges due to the severity of the consequences for inference. There are four primary approaches that political scientists use in dealing with missing data: (1) listwise deletion or complete case analysis (LWD), (2) simple mean or median based imputation, (3) single regression-based imputation, or (4) multiple imputation (MI). Many of the most popular approaches to imputation carry assumptions that scholars have to satisfy. This manuscript aims to provide a primer to political scientists on the use of machine learning models in the Multiple Imputation with Chained Equations (`MICE`) framework - an extension of the familiar MI approach.
 
-Machine learning with `MICE` is not a new approach. While a JSTOR search of Political Science journals reports a handful of articles that discuss this particular approach, it is certainly not widely used by political scientists nor has it received much accessible discussion of how it works under the hood.[^2]
+Machine learning with `MICE` is not a new approach. While a JSTOR search on their text mining tool of Political Science journals reports that there were only about 40 articles since 2010 in Political science that discuss "MICE" and "imputation" despite the well-known problems that `LWD` produce.^[ [Link to search](https://constellate.org/dataset/d2d027e8-4fb3-b2fd-51c8-93252aa50f15/?unigrams=election,%20voters)] Fewer of these articles provide accessible discussions of how this procedure works.[^2]
 
 [^2]: Though, see @marbach_2022_pa.
 
@@ -107,11 +108,11 @@ graph LR;
 
 Others push against this claim and instead argue that `LWD` does not inherently generate bias for non-`MCAR` data but that researchers neglect to control for the cause of `MAR` or `MNAR` [@arel-bundock_pelc_2018_pa]. This is still dependent on the researcher's grasp of theory and ability to identify the DGP leading to the missingness. Though the onus is on the researcher to do this, it is often a relatively high standard given the complexity to which social phenomena relate and the tendency for our datasets to be highly-dimensional. Furthermore, this also increases the number of parameters one must include in their statistical models - which runs the risk of increasing collinearity [@schrodt_2014_jopr].
 
-Like `LWD`, simple imputation techniques like mean-and-median-based imputation do not reduce the chances of biased regression estimates. These approaches, called interpolation and extrapolation, are common for panel data and cross-sectional time series data. If you have missing data for an observation in one panel, you can take the same observations' responses in a previous panel and a latter panel. You then take the mean or the median of that particular observation for that variable. Other approaches seek to reduce this `MAR`-based bias through conditioning on other variables.
+Like `LWD`, simple imputation techniques like mean-and-median-based imputation do not reduce the chances of biased regression estimates. These approaches, called interpolation and extrapolation, are common for panel data and cross-sectional time series data. If you have missing data for an observation in one panel, you can take the same observations' responses in a previous panel and a latter panel. You then take the mean or the median of that particular observation for that variable. In cross-sectional data, mean-based imputation often means placing the mean value for the column in place of a missing value. Other approaches seek to reduce this `MAR`-based bias through conditioning on other variables.
 
-Hot Deck approaches to imputing missingness are regression-based in that they define the dependent variable as the one the researcher is attempting to impute and use variables thought to predict the cause of missingness in `MAR` contexts [@schunk_2008_atsa]. In this approach, you often use a few variables to condition on. In many cases, the precise mechanism generating missingness is often tricky to triangulate. As a result, if you fail to provide the correct model specification when the data are `MAR`, you often end up with biased regression estimates.
+Hot Deck approaches to imputing missingness are regression-based in that they define the dependent variable as the one the researcher is attempting to impute and use variables thought to predict the cause of missingness in `MAR` contexts [@schunk_2008_atsa]. In this approach, you often use a few variables to condition on. In many cases, the precise mechanism generating missingness is often tricky to triangulate. As a result, if you fail to provide the correct model specification when the data are `MAR`, you often end up with biased regression estimates. Furthermore, hot-deck imputation is limited in that it performs this regression once. This means that if the model providing the predicted values is incorrect, so will those missing values.
 
-`MI` seeks to solve this issue by using the entire dataset for imputing missing values [@rubin_1996_jasa]. This approach uses the other variables in the dataset to generate a joint posterior distribution of all possible missing values for that particular observation. Many assume that most social science data sets are sufficiently large enough to condition on the mechanism generating `MAR` [@schunk_2008_atsa]. Unlike the other approaches, `MI` also generates uncertainty around the imputed values - via its construction of the joint posterior distribution [@rubin_1996_jasa] - which enables the researcher to be more transparent about the validity of those imputed values and to include that uncertainty in the researcher's subsequent statistical analyses [@king_et-al_2001_apsr; @von-hippel_2015_semmj]. A prevalent implementation of `MI` in political science is the `AMELIA II` software [@amelia; @honaker_et-al_2011_jss; @lall_2016_pa]. This useful tool provides a computationally fast and simple process for imputation by taking advantage of bootstrapping with the EMB algorithm. Compared to the other approaches to missing data, `AMELIA II` performs quite well [@honaker_et-al_2011_jss; @kropko_et-al_2014_pa]. `MI`, however, often requires a set of distributional assumptions for the joint distribution - often the multivariate normal [@honaker_et-al_2011_jss]. Another challenge with this tool is that it runs up with the curse of dimensionality -- if you are asking for more information by using more variables than you have observations, many non-regularized models will provide inaccurate estimates.
+`MI` seeks to solve these issues by using the entire dataset for imputing missing values and doing it multiple times[@rubin_1996_jasa]. This approach uses the other variables in the dataset to generate a joint posterior distribution of all possible missing values for that particular observation. Many assume that most social science data sets are sufficiently large enough to condition on the mechanism generating `MAR` [@schunk_2008_atsa]. Unlike the other approaches, `MI` also generates uncertainty around the imputed values - via its construction of the joint posterior distribution with multiple iterations [@rubin_1996_jasa] - which enables the researcher to be more transparent about the validity of those imputed values and to include that uncertainty in the researcher's subsequent statistical analyses [@king_et-al_2001_apsr; @von-hippel_2015_semmj]. A prevalent implementation of `MI` in political science is the `AMELIA II` software [@amelia; @honaker_et-al_2011_jss; @lall_2016_pa]. This useful tool provides a computationally fast and simple process for imputation by taking advantage of bootstrapping with the EMB algorithm. Compared to the other approaches to missing data, `AMELIA II` performs quite well [@honaker_et-al_2011_jss; @kropko_et-al_2014_pa]. `MI`, however, often requires a set of distributional assumptions for the joint distribution - often the multivariate normal [@honaker_et-al_2011_jss]. Another challenge with this tool is that it runs up with the curse of dimensionality -- if you are asking for more information by using more variables than you have observations, many non-regularized models will provide inaccurate estimates.
 
 There is a variant to `MI` that seeks more computational efficiency and loosens some requirements. This variant is called Multiple Imputation through Chained Equations (`MICE`). `MICE` performs quite well for large imputation tasks. `MI` struggles to impute values when there is missingness in the other variables of the dataset as it estimates imputed variables based on the joint distribution as opposed to focusing each imputation by optimizing predictions for each variable [@kropko_et-al_2014_pa]. `MICE` tries to get around this limitation in a few steps, as described by @azur_et-al_2011_ijmpr. @fig-process provides a visual representation of the procedure for a form of `MICE` used in this manuscript. I include more details about random forest models in the following subsection.
 
@@ -131,7 +132,7 @@ First, `MICE` performs a simple imputation, or interpolation, for every missing 
 
 [^4]: Though, the exact number of recommended iterations used in `MICE` are still up for debate [see @buuren_goothuis-oudshoorn_2011_jss; @azur_et-al_2011_ijmpr]. The recommendation is that you elect to go with more iterations if not constrained by computational limitations.
 
-The advantage of this chained equation procedure is to estimate each variable as an outcome with its own regression model that is most appropriate for it. This means that the imputation task optimizes on each variable containing `MAR` data as opposed to optimizing the task for the whole dataset. Though `MI` as implemented in `AMELIA` is regression based,  the regression models that one may use in `MICE` are as numerous as those a researcher may choose from when engaged in statistical analysis. This means that the assumptions and the performance of the model one uses for the imputation are the same as in standard statistical analyses. Though it decreases some of the requirements for modeling the `MAR` process, it is not entirely atheoretical. We can, however, reduce the dependence that the imputed data have on a researcher's ability to theorize about the `MAR` process by selecting models that are accustomed to dealing with a large number of parameters without increasing inefficiency.
+The advantage of this chained equation procedure is to estimate each variable as an outcome with its own regression model that is most appropriate for it. This means that the imputation task optimizes on each variable containing `MAR` data as opposed to optimizing the task for the whole dataset. Though `MI` as implemented in `AMELIA` is regression based, the regression models that one may use in `MICE` are as numerous as those a researcher may choose from when engaged in statistical analysis. This means that the assumptions and the performance of the model one uses for the imputation are the same as in standard statistical analyses. Though it decreases some of the requirements for modeling the `MAR` process, it is not entirely atheoretical. We can, however, reduce the dependence that the imputed data have on a researcher's ability to theorize about the `MAR` process by selecting models that are accustomed to dealing with a large number of parameters without increasing inefficiency.
 
 One valuable model for allowing one to include a large number of parameters without losses to efficiency, is a form of ensemble machine learning model called Random Forests. As the following discussion highlights, random forest models are optimal for engaging in predictive tasks [see @montgomery_olivella_2018_ajps], which appears appropriate for the task of predicting missing values. These models have the additional benefit of not requiring a multivariate normal distribution, not requiring one to specify a potentially incorrect model of which variables are included in the `MAR` process, nor is it in the form of a `GLM`. That is, these models reduce some of the dependence of an imputation task on the researcher's beliefs about the source of the missingness. As researchers apply these random forest models within the `MICE` framework, they also benefit from the advantages that `MI` provide over the hot deck framework. Furthermore, machine learning models like ensemble procedures apply regularization to deal with highly dimensional datasets. These three features suggest that this procedure offers much more flexibility to the researcher.
 
@@ -169,7 +170,7 @@ Practitioners refer to random forests as tree-based ensemble models. As a superv
 
 As this is a primer for the applied researcher, I note that this discussion simplifies decision trees and random forest models. For those interested in more details about these concepts, @james_et-al_2013_springer provide a helpful discussion of these concepts. The main point is that random forest models specialize in generating predictions by optimizing at the *value* and *not* the *variable* level. This characteristic suggests that these models have the potential to be powerful tools for many different applications.
 
-We can discuss their applicability to imputation in the `MICE` framework with a foundation in how random forest models work. As random forest models specialize in generating fixed out-of-sample predictions, these models have a joint goal with multiple imputation in that it should not be evaluated on the model's correctness but on the model's ability to predict a fixed (true) value [@rubin_1996_jasa]. Here, one might think of missing data as the out-of-sample predictions intended to be estimated. With random forest models, you train the model on a training data set (often randomly generated through cross-validation), a randomly selected portion of your data that you train the model on, and then fit the model on the testing set, the remaining data not used for the training stage of your model [@hastie_et-al_2009_springer].
+We can discuss their applicability to imputation in the `MICE` framework with a foundation in how random forest models work. As random forest models specialize in generating fixed out-of-sample predictions, these models have a joint goal with multiple imputation in that it should not be evaluated on the model's correctness in terms of explanation of the `MAR` process, but on the model's ability to predict a fixed (true) value [@rubin_1996_jasa]. Here, one might think of missing data as the out-of-sample predictions intended to be estimated. With random forest models, you train the model on a training data set (often randomly generated through cross-validation), a randomly selected portion of your data that you train the model on, and then fit the model on the testing set, the remaining data not used for the training stage of your model [@hastie_et-al_2009_springer].
 
 OLS models often perform relatively poorly on making out-of-sample predictions as they are `BLUE`, assuming the data on hand are relatively representative of the population. As we have `MAR` data, this assumption likely fails, and any out-of-sample predictions are likely to be biased due to overfitting. Further, OLS may also generate out-of-bounds predictions for non-continuous data [@long_1997_sage; @gelman_et-al_2021_cup] which is particularly troublesome in settings of prediction.
 
@@ -179,7 +180,7 @@ On other performance metrics, random forest models, as an ensemble method, provi
 
 In the context of using `MICE`, I argue that political scientists should *consider* using random forest models to make accurate predictions with fewer assumptions and be more lenient in terms of conditioning on the cause of `MAR` in the data set. Recall that within each `MICE` iteration, one performs a model predicting (imputing) a missing value based on the other variables in the dataset. Explicitly, this means you are running a model per variable with missing data.
 
-Given that random forests are non-parametric, within each `MICE` iteration, the relationship between the variable to be imputed and those used to make the predictions can be non-linear and can take many different multivariate distributional forms. This is a significant advancement on traditional MI, which assumes a multivariate normal distribution. Additionally, this is an advancement on other `MICE` models that political scientists use, which may not inherently conceptualize missing data as these unobserved values to predict from a generalized relationship of the observed variable with the other variables in the dataset. These relationships are also not assumed to be linear. Furthermore, using `RF-MICE` has the advantage over hot-deck procedures for those unsure about a variable's precise DGP for MAR.
+Given that random forests are non-parametric, within each `MICE` iteration, the relationship between the variable to be imputed and those used to make the predictions can be non-linear and can take many different multivariate distributional forms. This is a significant advancement on traditional `MI`, which assumes a multivariate normal distribution. Additionally, this is an advancement on other `MICE` models that political scientists use, which may not inherently conceptualize missing data as these unobserved values to predict from a generalized relationship of the observed variable with the other variables in the dataset. These relationships are also not assumed to be linear. Furthermore, using `RF-MICE` has the advantage over hot-deck procedures for those unsure about a variable's precise DGP for MAR.
 
 In the next section, I illustrate the use of random forest models for political scientists by demonstrating a simulated application of a random forest implementation of `MICE`. The following section also compares this implementation's performance to other common approaches to handling missing data in political science in terms of our ability to reduce unobserved bias in our data and in computational costs. 
 <!--
@@ -231,7 +232,7 @@ datasets <- 1000 # size of number of samples
 ```
 
 
-Using `R` [@R], I simulate a population where $N = 1000000$. The population has 5 variables (excluding a row index variable). The data generating process (DGP) of these variables are presented in @eq-sim-dgp. I then use the `infer` [@infer] package to take 1000 random samples from that population where the size of each sample is $n = 100$. 
+Using `R` [@r], I simulate a population where $N = 1000000$. The population has 5 variables (excluding a row index variable). The data generating process (DGP) of these variables are presented in @eq-sim-dgp. I then use the `infer` [@infer] package to take 1000 random samples from that population where the size of each sample is $n = 100$. 
 
 ``` {r}
 #| label: simulate samples
@@ -276,7 +277,7 @@ y_i = 0.6 \times x_i + 0.9 \times z_i + Normal(0,1)
 $$ {#eq-sim-dgp}
 
 
-For each sample, I use the `miceRanger` [@miceranger] package to "ampute" the data to introduce missingness for 40% of the observations that follows a `MAR` pattern. The documentation of this package suggests that the amputation utilizes a logistic regression to generate a `MAR` pattern for each variable. This is advantageous to the `mice` [@mice] package's amputation function which forms the `MAR` pattern for each variable with a linear regression. As tools such as AMELIA assume a MVN for the imputation, I would not expect that there would be many differences in performance between different imputation procedures. Complicating the `MAR` process should help distinguish the limitations and benefits of the imputation procedures.
+For each sample, I use the `miceRanger` [@miceRanger] package to "ampute" the data to introduce missingness for 40% of the observations that follows a `MAR` pattern. The documentation of this package suggests that the amputation utilizes a logistic regression to generate a `MAR` pattern for each variable. This is advantageous to the `mice` [@mice] package's amputation function which forms the `MAR` pattern for each variable with a linear regression. As tools such as AMELIA assume a MVN for the imputation, I would not expect that there would be many differences in performance between different imputation procedures. Complicating the `MAR` process should help distinguish the limitations and benefits of the imputation procedures.
 
 ```{r}
 #| label: ampute the data
@@ -533,7 +534,15 @@ df_discrepancy <- data.table::rbindlist(
 )
 # Convert procedure column of discrepancy data.frame to factor
 df_discrepancy <- df_discrepancy[
-    , procedure := factor(procedure)
+  , procedure := fcase(
+    procedure == "Amelia", "Amelia",
+    procedure == "mean", "Mean",
+    procedure == "miceRanger", "miceRanger (RF-MICE)",
+    procedure == "norm", "L-MICE",
+    procedure == "rf", "RF-MICE"
+  )
+][
+  , procedure := factor(procedure)
 ]
 ```
 
@@ -628,7 +637,7 @@ plot_discrepancy_y
 ```
 
 
-Overall, we see that the procedures do quite well in that the average difference between the actual data and the imputed data are quite small across the datasets. We see that `RF-MICE` when implemented with `miceRanger` [@miceranger] consistently does a good job at coming closer to the correct value than the other procedures do. `RF-MICE` when implemented in the `mice` [@mice] package does a poorer job at this, however. In terms of speed to execute the imputation, interpolation with the `mice` package took an average of `r sprintf('%.3f', df_log[1,2]/1000)` seconds; Amelia took an average of `r sprintf('%.3f', df_log[2,2]/1000)` seconds; `Linear-MICE` took an average of `r sprintf('%.3f', df_log[3,2]/1000)` seconds; `RF-MICE`, as implemented by `mice` [@mice], took an average of `r sprintf('%.3f', df_log[4,2]/1000)` seconds; and `RF-MICE`, as implemented by `miceRanger` [@miceRanger], took an average of `r sprintf('%.3f', df_log[5,2]/1000)` seconds.
+Overall, we see that the procedures do quite well in that the average difference between the actual data and the imputed data are quite small across the datasets. We see that `RF-MICE` when implemented with `miceRanger` [@miceRanger] consistently does a good job at coming closer to the correct value than the other procedures do. `RF-MICE` when implemented in the `mice` [@mice] package does a poorer job at this, however. In terms of speed to execute the imputation, interpolation with the `mice` package took an average of `r sprintf('%.3f', df_log[1,2]/1000)` seconds; Amelia took an average of `r sprintf('%.3f', df_log[2,2]/1000)` seconds; `Linear-MICE` took an average of `r sprintf('%.3f', df_log[3,2]/1000)` seconds; `RF-MICE`, as implemented by `mice` [@mice], took an average of `r sprintf('%.3f', df_log[4,2]/1000)` seconds; and `RF-MICE`, as implemented by `miceRanger` [@miceRanger], took an average of `r sprintf('%.3f', df_log[5,2]/1000)` seconds.
 
 Though it is not a novel claim, I argue that in situations where we have missingness due to a `MAR` pattern, our regression models suffer from bias due to the systematic process generating that missingness. What I have argued so far is that we should consider using `RF-MICE` as it is, relative to other `MI` tools, a flexible tool that may be able to model a number of `MAR` processes which would help with reducing bias in our regression models.
 
@@ -661,6 +670,14 @@ df_model_discrepancy <- data.table::rbindlist(
 )
 # Convert procedure column of discrepancy data.frame to factor
 df_model_discrepancy <- df_model_discrepancy[
+  , procedure := fcase(
+    procedure == "Amelia", "Amelia",
+    procedure == "mean", "Mean",
+    procedure == "miceRanger", "miceRanger (RF-MICE)",
+    procedure == "norm", "L-MICE",
+    procedure == "rf", "RF-MICE"
+  )
+][
     , procedure := factor(procedure)
 ]
 ```
@@ -736,7 +753,7 @@ In theory, `RF-MICE` is a quite flexible tool that can operate in a number of ci
 
 Using simulated data, I demonstrate two implementations of `RF-MICE` in `R` and compare it to implementations of more common procedures for dealing with `MAR` processes in political science. Overall, my simulated data and a number of measures of performance favor those theoretical expectations.
 
-When comparing the distribution of imputed samples to the true samples, as if the `MAR` process was not present, both `RF-MICE` implementations do quite well in recovering the true values that were missing. When examining the discrepancy between what the imputed value is and the true value, the two `RF-MICE` implementations provide quite small discrepancies on average.
+When comparing the distribution of imputed samples to the true samples, as if the `MAR` process was not present, `RF-MICE` implementationed with `miceRanger` does quite well in recovering the true values that were missing. When examining the discrepancy between what the imputed value is and the true value, the two `RF-MICE` implementations provide quite small discrepancies on average.
 
 Measuring the performance of `RF-MICE` in terms of reducing bias in statistical estimation, I find that `RF-MICE`, when implemented with the `miceRanger` package [@miceRanger], stands out as a valuable tool for researchers to use to reduce bias generated with `MAR` processes.
 

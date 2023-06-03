@@ -1,77 +1,70 @@
 ---
 title: |
-    Seeing the leaves through the forest
-subtitle: A peak under the hood using random forest models for missing data problems
-short-title: Giving the leaves back to the forest
+  Seeing the leaves through the forest
+subtitle: A primer on using random forest models for missing data problems
+short-title: Seeing the leaves through the forest
 #code-repo: "Replication materials are stored at <https://github.com/DamonCharlesRoberts/mice-imputation-psci>"
 author:
   - name: Anonymized for review
-    #email: damon.roberts-1@colorado.edu
-    #orcid: 0000-0002-4360-3675
-    #title: PhD Candidate
-    #affiliations:
-    #  - id: CU
-    #    name: University of Colorado Boulder
-    #    department: Political Science
-    #    address: 333 UCB
-    #    city: Boulder
-    #    region: CO 
-    #    postal-code: 80309-0333
-    #attributes:
-    #  corresponding: true   
+  #- name: Damon Charles Roberts
+  #  email: damon.roberts-1@colorado.edu
+  #  orcid: 0000-0002-4360-3675
+  #  title: PhD Candidate
+  #  affiliations:
+    # name: University of Colorado Boulder
+    # department: Political Science
+    # city: Boulder
+    # region: CO
+    # postal-code: 80309-0333
+  # attributes:
+  #  corresponding: true
 abstract: |
-    Political scientists often struggle with decisions about what to do with incomplete cases for their regression analyses, and one can often make several decisions that influence one’s ultimate substantive conclusions. In many areas of research outside of political science and the social sciences, scholars take advantage of an extension of multiple imputation, which offers the choice to leverage machine learning models for predicting values in missing data. This manuscript provides a summary of missing data and its consequences for our regression models along with providing an explanation of how to implement random forest models with an expanded form of the multiple imputation procedure, called multiple imputation with chained equation to handle complex causes for non-random missingness in our data. After providing a primer on standard missing data procedures in political science and random forest with multiple imputation with chained equations, I examine its performance on simulated data. I conclude by providing recommendations for dealing with missing data in practice. 
-#thanks: |
-#    I would like to thank Andrew Q. Philips, Jennifer Wolak, and Madeline Mader for their advice and many conversations during the development of this project as well as Andy Baker for offering me the space to write the manuscript and for his feedback. I would also like to thank the discussants and panelists at MPSA for their useful feedback and encouragement.
-#published: "Working paper. Please do not distribute without author consent."
+  Political scientists often struggle with decisions about what to do with incomplete cases for their regression analyses, and one can often make several decisions that influence one’s ultimate substantive conclusions. In many areas of research outside of political science and the social sciences, scholars take advantage of an extension of multiple imputation, which offers the choice to leverage machine learning models for predicting values in missing data. This manuscript provides a summary of missing data and its consequences for our regression models along with providing an explanation of how to implement random forest models with an expanded form of the multiple imputation procedure, called multiple imputation with chained equation to handle complex causes for non-random missingness in our data. After providing a primer on standard missing data procedures in political science and random forest with multiple imputation with chained equations, I examine its performance on simulated data. I conclude by providing recommendations for dealing with missing data in practice. 
+# thanks: |
+  # I would like to thank Andrew Q. Philips, Jennifer Wolak, and Madeline Mader for their advice and many conversations during the development of this project as well as Andy Baker for offering me the space to write the manuscript and for his feedback. I would also like to thank the discussants and panelists at MPSA for their useful feedback and encouragement.
+# published: "Working paper. Please do not distribute without author consent."
 keywords:
   - Missing data
   - Multiple imputation
   - Machine learning
 date: today
 bibliography: "../assets/references.bib"
-nocite: |
-    @dbi, @duckdb, @r, @dplyr, @itertools, @sys, @tibble,
 format:
   hikmah-pdf:
-    # Spit out in drafts directory
-    latex-output-dir: "../drafts/submissions/ajps"
+    # put the pdf in t he drafts directory
+    latex-output-dir: "../out/"
     # Use biblatex-chicago
     biblatex-chicago: true
     biblio-style: authordate
-    biblatexoptions: 
-      - backend=biber
-      - autolang=hyphen
-      - isbn=false
-      - uniquename=false
+    biblatexoptions:
+        - backend=biber
+        - autolang=hyphen
+        - isbn=false
+        - uniquename=false
     citeproc: false
-    filters: 
-      - "../_extensions/andrewheiss/wordcount/citeproc.lua"
-      - "../_extensions/andrewheiss/wordcount/wordcount.lua"
-  #pdf:
-  #  template: "../../../templates/manuscripts/apsr_template.tex"
-  #  cite-method: biblatex
-  #  #latex-output-dir: "../drafts"
-  #  keep-tex: true
+    geometry:
+      - top=1in
+      - bottom=1in
+      - left=1in 
+      - right=1in
 execute:
-    echo: false
-    message: false
-    warning: false
-    eval: true
+  echo: false
+  message: false
+  warning: false
+  eval: true
 params:
-    windows: true
-    reproduce: false
+  reproduce: false
 ---
 
 
 ```{.r}
 # Install libraries
 install.packages(
-    c(
-        "AMELIA"
-        , "mice"
-        , "miceRanger"
-    )
+  c(
+      "AMELIA"
+      , "mice"
+      , "miceRanger"
+  )
 )
 # Load libraries
 library(Amelia) # for MI
@@ -86,34 +79,34 @@ dfImputed <- df[complete.cases(df), ] # exclude rows that have missing values in
 
 # Interpolation
 dfImputed <- mice(
-    df # dataframe
-    , m = 10 # number of imputations
-    , method = "mean" # mean interpolation
+  df # dataframe
+  , m = 10 # number of imputations
+  , method = "mean" # mean interpolation
 )
 
 # Amelia
 dfImputed <- amelia(
-    df # dataframe
-    , m = 10 # number of imputations
+  df # dataframe
+  , m = 10 # number of imputations
 )
 
 # Linear Bayesian MICE
 dfImputed <- mice(
-    df # dataframe
-    , m = 10 # number of imputations
-    , method = "linear" # Bayesian linear MICE
+  df # dataframe
+  , m = 10 # number of imputations
+  , method = "linear" # Bayesian linear MICE
 )
 
 # RF-MICE with mice package
 dfImputed <- mice(
-    df # dataframe
-    , m = 10 # number of imputations
-    , method = "rf" # RF-MICE
+  df # dataframe
+  , m = 10 # number of imputations
+  , method = "rf" # RF-MICE
 )
 
 # RF-MICE with miceRanger package
 dfImputed <- miceRanger(
-    df # dataframe
-    , m = 10 # number of imputations
+  df # dataframe
+  , m = 10 # number of imputations
 )
 ```
