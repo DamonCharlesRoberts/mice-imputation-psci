@@ -1,92 +1,165 @@
-#' clean the output of the miceRanger imputation
-#' @param resultList
-#' @returns resultList
-complete_data <- function(resultList = NULL) {
-    #' Clean the miceRanger output
-    #'
-    #' Parameters
-    #' ----
-    #' data_frame(list(data.frame)): list of data.frames that have been imputed
-    #'
-    #' Returns
-    #' ----
-    #' list of data.frame
-    mr_list <- base::lapply(
-        resultList # take the resultList list of miceRanger objects
+#' @title impute the data
+#' 
+#' @description
+#' This function takes incomplete data and will impute it using
+#' either the mice, Amelia, or miceRanger packages. Once it has
+#' finished imputing the data, it will then return a
+#' data.table/data.frame object with the complete data from the
+#' imputation and will record which rows were from which 
+#' imputation iteration.
+#' 
+#' @details
+#' This function relies on the private complete_data function
+#' to clean the miceRanger data.
+#' 
+#' @family impute
+#' @seealso [.complete_data()]
+#' 
+#' @param data_frame The data.frame with missingness
+#' @param m The number of imputations to perform
+#' @param package The package to use for the imputation
+#' @param meth The method of imputation
+#' @returns list of data.tables
+#' @examples
+#' list_imputed <- impute(
+#'   data_frame = df_missingness
+#'   , m = 10
+#'   , package = "mice"
+#'   , meth = "mean"
+#' )
+#' length(list_imputed) # returns 10. 1 for each imputed data.table.
+#' @export
+impute <- function (
+  data_frame
+  , m = 10
+  , package = NULL
+  , meth = NULL
+) {
+  # Pull out the dataset column to not impute it.
+  # But it should be used to help know how many times to do the imputations
+  col_factor <- factor(data_frame$dataset)
+  df_temp <- data_frame[, -c("dataset")]
+  # perform imputation
+  if (package == "Amelia") {
+    list_result <- base::by(
+      df_temp # take the whole dataframe except the dataset column
+      , col_factor # execute the following function per dataset factor level
+      , FUN = function (x) {
+        Amelia::amelia(
+          x
+          , m = m
+          , p2s = 0
+        ) #impute the data with amelia
+      }
+    ) # run the specified function for the dataset across `dataset` column factors
+        
+    list_clean <- base::lapply( # create a list from iteratively performing the following
+      list_result # take the list of amelia objects
+      , function (x) {
+        df_temp <- data.table::rbindlist(
+            x$imputations # grab the imputed dataframes
+            , id = "imputations" # create a new column called "imputations"
+        ) # and bind all of these imputed dataframes into one dataframe with an id column
+        df_temp <- df_temp[
+          , imputations := base::gsub("imp", "", imputations)
+        ][
+          , imputations := as.integer(imputations)
+        ]
+      }
+    )
+  } else if (package == "miceRanger") {
+    list_result <- base::by(
+      df_temp #take the whole dataframe except the dataset column
+      , col_factor # execute the following function per dataset factor level
+      , FUN = function (x) {
+        miceRanger::miceRanger(
+          x
+          , m = m
+          , verbose = FALSE
+        )
+      }#impute the data with miceRanger
+    )
+    list_clean <- .complete_data(data_frame=list_result)
+  } else {
+    list_result <- base::by(
+      df_temp # take the whole dataframe except the dataset column
+      , col_factor #execute the following function per dataset factor level
+      , FUN = function (x) {
+        mice::mice(
+          x
+          ,m = m
+          , meth = meth
+          , printFlag = FALSE
+        )
+      }#impute the data with mice and a user-specified method
+    )
+    list_clean <- base::lapply(
+        list_result
+        , function (x) {
+          df_temp <- mice::complete(
+            x, "long"
+          ) |>
+          data.table::as.data.table()
+          data.table::setnames(
+            df_temp
+            , old = ".imp"
+            , new = "imputations"
+          )
+          df_temp <- df_temp[
+            , `.id` := NULL
+          ]
+        }
+    )
+  }
+  return(list_clean)
+}
+
+#' @title cleaning miceRanger
+#'
+#' @description
+#' This is a function that takes a list of miceRanger data.table outputs
+#' and uses miceRanger::completeData on each list element to return a
+#' data.frame of the completed data after miceRanger imputation. After
+#' doing this, it then takes the list of completeData data.frames and
+#' collapses them into one data.frame with a dataset id viarable.
+#' 
+#' @details
+#' This is a private function used to clean miceRanger output from
+#' the impute function.
+#' 
+#' @family impute
+#' @seealso [impute()]
+#' 
+#' @param data_frame A data.table/data.frame object
+#' containing the complete imputed data from miceRanger imputation
+#' @returns df_miceranger list of data.frames
+#' @examples
+#' df_miceranger <- miceranger(df_missing)
+#' df <- complete_data(
+#'   data_frame = df_miceranger
+#' )
+.complete_data <- function (
+    data_frame
+) {
+    list_mr_complete <- base::lapply(
+        data_frame # take the list_result list of miceRanger objects
         ,miceRanger::completeData #create a list of data.table objects
     )
-    mr_df_list <- base::lapply(
-        mr_list #take the list of data.table objects
-        ,data.table::rbindlist #and bind them into one data.frame
-        , id = "imputations"#create an id column called imputations
+    list_mr_df <- base::lapply(
+        list_mr_complete #take the list of data.table objects
+        , function (x) {
+          df_temp <- data.table::rbindlist(
+            x
+            , id = "imputations"
+          ) # bind them into a data.frame
+          df_temp <- df_temp[
+            , imputations := base::gsub("Dataset_", "", imputations)
+          ][
+            , imputations := as.integer(imputations)
+          ]
+        }
     )
-}
-#'impute the data
-#' @param df the amputed data.frame
-#' @param m the number of imputations to perform
-#' @param package the package to use for the imputation
-#' @param meth the method of imputation
-#' @return list of data.tables
-#' @export
-impute <- function(
-    df
-    ,m = 10
-    ,package = NULL
-    ,meth = NULL
-) {
-    # perform imputation
-    if (package == "Amelia") {
-        resultList <- base::by(
-            df[,-1] # take the whole dataframe except the dataset column
-            ,df$dataset # execute the following function per dataset factor level
-            ,FUN=function (x) {
-                Amelia::amelia(
-                    x
-                    ,m=m
-                ) #impute the data with amelia
-            }
-        ) # run the specified function for the dataset across `dataset` column factors
-        resultClean <- base::lapply( # create a list from iteratively performing the following
-            resultList # take the list of amelia objects
-            ,function(x) data.table::rbindlist(
-                x$imputations # grab the imputed dataframes
-                ,id="imputations" # create a new column called "imputations" storing the list name
-            ) # and bind all of these imputed dataframes into one dataframe with an id column
-        )
-        #x <- lapply(df, amelia, m = m) # nolint
-        #df <- lapply(mice::complete, x, "long")
-    } else if (package == "miceRanger") {
-        resultList <- base::by(
-            df[,-1] #take the whole dataframe except the dataset column
-            ,df$dataset # execute the following function per dataset factor level
-            ,FUN=function (x) {
-                miceRanger::miceRanger(
-                    x
-                    ,m=m
-                    ,verbose=FALSE
-                )
-            }#impute the data with miceRanger
-        )
-        resultClean <- miceRanger::complete_data(resultList=resultList)
-        #x <- lapply(df, miceRanger, m = m, verbose = FALSE) # nolint
-        #df <- complete_data(x)
-    } else {
-        resultList <- base::by(
-            df[,-1] # take the whole dataframe except the dataset column
-            ,df$dataset #execute the following function per dataset factor level
-            ,FUN=function (x) {
-                mice::mice(
-                    x
-                    ,m=m
-                    ,meth=meth
-                    ,printFlag=FALSE
-                )
-            }#impute the data with mice and a user-specified method
-        )
-        #x <- lapply(df, mice, m = m, meth = meth, printFlag = FALSE) # nolint
-        resultClean <- base::lapply(resultList, mice::complete, "long")
-    }
-    return(resultClean)
+    return(list_mr_df)
 }
 
 ## Discrepancy

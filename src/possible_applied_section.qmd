@@ -1,0 +1,81 @@
+# Examining these procedures with the 2022 CES
+
+How would I implement these procedures with a common political science dataset? This section demonstrates how to do this with the common content from the 2022 Cooperative Election Study (CES). While I am unable to compare the ability for these procedures to reduce bias as I do not have complete data, the next section provides computational benchmarks for each of these procedures on a common dataset in political science as well as estimates the Z-score difference between these procedures to demonstrate whether resulting differences between these procedures' performance has any meaningful difference that the practitioner should be concerned with.
+
+I first clean the 2020 CES by removing columns reporting the respondents' case number, whether they took the CCES and the post-election questionnaire, how long respondents spent on any given page, non-numeric columns, and questions in the post-election questionnaire that were also asked in the pre-election questionnaire.
+
+```{r}
+#| label: load-cces
+
+if (params$reproduce == TRUE) {
+  source("2022_ces_cleaning.R")
+} else {
+  load(
+    file = "../data/2020_cces/cleaned.RData"
+  )
+}
+```
+
+Once the cleaning was complete, I generate five imputed datasets with each procedure used in the simulation study. While performing the imputation, I use the `tictoc` [@tictoc] package to record the amount of time each imputation task took to complete. Once the imputation was completed, 
+
+```{r}
+#| label: impute-ces
+
+if (params$reproduce == TRUE) {
+  tic.clearlog() # clear log for tic
+  #* mean
+  tic("Interpolate")
+  df_mean <- mice::mice(
+    df_ces_clean
+    , m = 5
+    , meth = "mean"
+    , printFlag = FALSE
+  )
+  toc(
+    log = TRUE
+    , quiet = TRUE
+  )
+  #* Amelia
+  tic("Amelia")
+  df_amelia <- Amelia::amelia(
+    df_ces_clean
+    , m = 5
+    , p2s = 0
+  )
+  toc(
+    log = TRUE
+    , quiet = TRUE
+  )
+  #* LMICE
+  tic("L-MICE")
+  df_lmice <- mice::mice(
+    df_ces_clean
+    , m = 5
+    , meth = "norm"
+    , printFlag = FALSE
+  )
+  toc(
+    log = TRUE
+    , quiet = TRUE
+  )
+  #* RFMICE
+  tic("RF-MICE")
+  df_rfmice <- mice::mice(
+    df_ces_clean
+    , m = 5
+    , meth = "rf"
+    , printFlag = FALSE
+  )
+  toc(
+    log = TRUE
+    , quiet = TRUE
+  )
+  # miceRanger
+  tic("miceRanger")
+  df_miceRanger <- miceRanger::miceRanger(
+    df_ces_clean
+    , m = 5
+    , verbose =  FALSE
+  )
+}
+```
