@@ -3,26 +3,26 @@ title: |
   Seeing the leaves through the forest
 subtitle: A primer on using random forest models for missing data problems
 short-title: Seeing the leaves through the forest
-#code-repo: "Replication materials are stored at <https://github.com/DamonCharlesRoberts/mice-imputation-psci>"
+code-repo: "Replication materials are stored at <https://github.com/DamonCharlesRoberts/mice-imputation-psci>"
 author:
-  - name: Anonymized for review
-  #- name: Damon Charles Roberts
-  #  email: damon.roberts-1@colorado.edu
-  #  orcid: 0000-0002-4360-3675
-  #  title: PhD Candidate
-  #  affiliations:
-    # name: University of Colorado Boulder
-    # department: Political Science
-    # city: Boulder
-    # region: CO
-    # postal-code: 80309-0333
-  # attributes:
-  #  corresponding: true
+  #- name: Anonymized for review
+  - name: Damon Charles Roberts
+    email: damon.roberts-1@colorado.edu
+    orcid: 0000-0002-4360-3675
+    title: PhD Candidate
+    affiliations:
+      name: University of Colorado Boulder
+      department: Political Science
+      city: Boulder
+      region: CO
+      postal-code: 80309-0333
+    attributes:
+      corresponding: true
 abstract: |
-  Political scientists often struggle with decisions about what to do with incomplete cases for their regression analyses, and one can often make several decisions that influence one’s ultimate substantive conclusions. In many areas of research outside of political science and the social sciences, scholars take advantage of an extension of multiple imputation, which offers the choice to leverage machine learning models for predicting values in missing data. This manuscript provides a summary of missing data and its consequences for our regression models along with providing an explanation of how to implement random forest models with an expanded form of the multiple imputation procedure, called multiple imputation with chained equation to handle complex causes for non-random missingness in our data. After providing a primer on standard missing data procedures in political science and random forest with multiple imputation with chained equations, I examine its performance on simulated data. I conclude by providing recommendations for dealing with missing data in practice. 
-# thanks: |
-  # I would like to thank Andrew Q. Philips, Jennifer Wolak, and Madeline Mader for their advice and many conversations during the development of this project as well as Andy Baker for offering me the space to write the manuscript and for his feedback. I would also like to thank the discussants and panelists at MPSA for their useful feedback and encouragement.
-# published: "Working paper. Please do not distribute without author consent."
+  Though missing data is pervasive in political science datasets, attempting to regain information from it remains a relatively uncommon step in data pre-processing. While there are many options out there, the benefits and drawbacks each provide can make it difficult to discern which to use. This note has two goals. First, to provide a review of the consequences of missing data and to provide a reference for common options used by political scientists. The second goal of the note is to advocate for the uptake of using random forest models in the Multiple Imputation with Chained Equations framework. In doing so, it lays out the intuition of these models and how that fits with the task of imputing missing data while also comparing the use of this implementation to other common approaches used in political science with simulated data that are representative of political science data.
+thanks: |
+  Word Count (including references): 5705. I would like to thank Madeline Mader, Alexandra Siegel, Andrew Q. Philips, and Jennifer Wolak for their advice and many conversations during the development of this project as well as Andy Baker for offering me the space to write the manuscript and for his feedback. I would also like to thank the discussants and panelists at MPSA for their useful feedback and encouragement.
+published: "Working paper. Please do not distribute without author consent."
 keywords:
   - Missing data
   - Multiple imputation
@@ -34,6 +34,7 @@ format:
     # put the pdf in t he drafts directory
     latex-output-dir: "../out/"
     # Use biblatex-chicago
+    cite-method: citeproc
     biblatex-chicago: true
     biblio-style: authordate
     biblatexoptions:
@@ -41,12 +42,18 @@ format:
         - autolang=hyphen
         - isbn=false
         - uniquename=false
-    citeproc: false
+    filters: 
+      - "_extensions/andrewheiss/wordcount/citeproc.lua"
+      - "_extensions/andrewheiss/wordcount/wordcount.lua"
     geometry:
       - top=1in
       - bottom=1in
       - left=1in 
       - right=1in
+      - heightrounded
+    linestretch: 2
+    fontsize: 12pt
+    appendix-style: none
 execute:
   echo: false
   message: false
@@ -60,7 +67,11 @@ params:
 
 # Introduction
 
-Missing values are common in social science data. @king_et-al_2001_apsr estimate that political scientists lose about one-third of their data in their complete case regression analyses due to missing data. There are many reasons why missing values arise in our data. In surveys, these are referred to as item-nonresponse and pose threats to obtaining unbiased estimates for public opinion research when researchers utilize listwise deletion (`LWD`) in their regression analyses [@weisberg_2005_chicago]; mainly when the researcher can predict the cause of the missingness with an observed cause - which scholars refer to the data as "missing at random" [@king_et-al_2001_apsr].[^1] More generally, missing values come about in other types of data due to the unit's (e.g., country, respondent, politician) attempt to obfuscate information, data collector error, or researcher error. When common and not from a stochastic data generating process (DGP), missing data pose threats to causal inference through omitted variable bias where the missing value in the variables included in a statistical model can be predicted by another variable in your model.
+Missing values are common in social science data. @king_et-al_2001_apsr estimate that political scientists lose about one-third of their data in their complete case regression analyses due to missing data. This manuscript has two goals. First, to convince political scientists that the consequences of missing data should be avoided. Without the first goal, the second goal of the manuscript is likely to not be of use. The second goal of the manuscript is to provide an accessible introduction to the use of random forest models (`RF`) to fix a common pattern of missing data. 
+
+While implementations of random forest models to solve missing data problems are not new, discussions of these tools are not readily accessible to most quantitative political scientists ^[Though see @marbach_2022_pa for an example in political science.] as these procedures are popular in fields such as Statistics and Bioinformatics.^[Using JSTOR's text mining tool on journals in political science reports that there were only about 40 published articles since 2010 that discuss "MICE" -- the common imputation framework that random forest models are implemented in -- and "imputation". [Link to search.](https://constellate.org/dataset/d2d027e8-4fb3-b2fd-51c8-93252aa50f15/?unigrams=election,%20voters)] In the following sections, I review the consequences of incomplete data in one's analysis, then I review existing techniques, then I describe how random forest models work and describe the intuition behind their implementation to solve familiar missing data problems. I finish the manuscript with simulations comparing different implementations of random forest models for imputation alongside common approaches to handling missing data in political science.
+<!--
+There are many reasons why missing values arise in our data. In surveys, these are referred to as item-nonresponse and pose threats to obtaining unbiased estimates for public opinion research when researchers utilize listwise deletion (`LWD`) in their regression analyses [@weisberg_2005_chicago]; mainly when the researcher can predict the cause of the missingness with an observed cause - which scholars refer to the data as "missing at random" [@king_et-al_2001_apsr].[^1] More generally, missing values come about in other types of data due to the unit's (e.g., country, respondent, politician) attempt to obfuscate information, data collector error, or researcher error. When common and not from a stochastic data generating process (DGP), missing data pose threats to causal inference through omitted variable bias where the missing value in the variables included in a statistical model can be predicted by another variable in your model.
 
 [^1]: Which is a common occurrence, more so than missingness caused entirely by random chance - which, if one meets this condition, gives unbiased estimates with LWD.
 
@@ -76,23 +87,17 @@ This manuscript compares the utility of random forest models in the `MICE` proce
 
 The next section reviews common approaches handling missing data that political scientists currently use. The next section describes machine learning and random forest models and links this to my claim of their utility for predicting missing data when used in the `MICE` procedure. I then move into applied examples where I examine the performance of these random forest models to other common approaches to dealing with missing data on simulated data. I then discuss recommendations for when one should use the reigning popular techniques or the random forest application in the `MICE` procedure.
 
-<!-- 
-    END OF INTRODUCTION SECTION
 -->
 
-# Types of missing data, imputation, and MI in Political Science
+# Types of missing data: MCAR, MAR, and MNAR
 
-## MCAR, MAR, and MNAR
+Missing data are not equal. The first form missing data takes is Missing Completely At Random (`MCAR`). This means that the data generating process for the missingness is random. The second form, Missing at Random (`MAR`), refers to data that are missing to some observed cause that can be accounted for. This type of missing data is argued to be the most likely type of data we encounter given factors like the interdependence of outcomes in our social world as well as the size of our datasets that leave fewer unobserved variables on the table [@schunk_2008_atsa]. The third form is called Non-ignorable (`NI`), or sometimes Missing Not at Random (`MNAR`). `MNAR` refers to a pattern of missingness that includes both observable and unobservable causes. @tbl-summary-missing-processes in the Supplementary Materials includes a summary of these, along with their consequences.
 
-Missing data arise in different forms. Researchers describe missing data in three ways - often using somewhat unintuitive acronyms. The first form missing data takes is Missing Completely At Random (`MCAR`). This means that the data generating process for the missingness is random - there are no observed or unobserved causes of missingness. The second form missing data takes is Missing At Random (`MAR`). In `MAR`, these data are missing due to some observed cause. However, they are "Missing at Random" once you account for that observed cause of missingness. Some argue that `MAR` is much more common given the state of how large most contemporary social science data sets are [@schunk_2008_atsa]. The third form that missing data take is Missing Not At Random (`MNAR`).[^3] `MNAR` happens when observed and unobserved causes explain the missingness. What distinguishes `MNAR` from `MAR` is that the researcher does not have a clear path forward to handle the cause of missingness. This occurs either because the variable where there is missingness is, itself, a cause of the missingness, or data explaining the cause of missingness is unobserved by the researcher. Since missing data take different forms, researchers use a few different approaches to deal with these challenges. I summarize the types of missing data problems there are and their potential ramifications in @tbl-summary-missing-processes and the common tools used to solve these problems in @tbl-summary-missing-solutions.
+# Dealing with missingness
 
-[^3]: Sometimes called Non-ignorable (`NI`).
+One estimate suggests that 94% of political scientists employ to handle missing data of all types is referred to as Listwise Deletion (`LWD`) [@king_et-al_2001_apsr]. `LWD` is a common default for statistical software that we use for fitting statistical models and essentially excludes observations from our analysis if the dependent variable or any of the covariates contain missing values. In cases of `MCAR` this approach is appropriate as the exclusion of an observation from an analysis would be random.
 
-## Dealing with missingness
-
-At the time of writing, @king_et-al_2001_apsr estimated that 94% of political scientists use `LWD` to deal with missing data. In short, `LWD` does not seek to impute missing values. Instead, if the dependent variable or any of the covariates in a regression model for a given observation are missing, the researcher does not include that observation in the analysis. Traditionally, scholars argue that `LWD` performs best (in terms of reducing the resulting bias in the researcher's subsequent regression models) when the data are `MCAR`.
-
-If the data are `MAR` or `MNAR`, deleting observations with missing data introduces bias in one's regression estimates through a failure to account for correlation between the independent variable(s) and the error [@king_et-al_2001_apsr; @weisberg_2005_chicago; @schunk_2008_atsa; @azur_et-al_2011_ijmpr]. Furthermore, it has the potential to decrease statistical power. A meta-analysis of comparative and international political economy papers that use `LWD` demonstrates that political scientists have much, upwards of 50%, more Type I error - an incorrect rejection of the null hypothesis - than we would expect as a result of how we implement `LWD` [@lall_2016_pa]. To visualize this, we can draw a directed acyclic graph; @fig-bias.
+If the data are `MAR` or `MNAR`, deleting observations with missing data introduces bias in one's regression estimates through a failure to account for correlation between the independent variable(s) and the error [@king_et-al_2001_apsr; @azur_et-al_2011_ijmpr]. Furthermore, it has the potential to decrease statistical power. A meta-analysis of comparative and international political economy papers that use `LWD` demonstrates that political scientists have much, upwards of 50%, more Type I error - an incorrect rejection of the null hypothesis - than we would expect as a result of how we implement `LWD` [@lall_2016_pa]. @fig-bias visualizes this with a DAG.
 
 ```{mermaid}
 %%| label: fig-bias
@@ -106,15 +111,13 @@ graph LR;
     d[M] --> a
 ```
 
-Others push against this claim and instead argue that `LWD` does not inherently generate bias for non-`MCAR` data but that researchers neglect to control for the cause of `MAR` or `MNAR` [@arel-bundock_pelc_2018_pa]. This is still dependent on the researcher's grasp of theory and ability to identify the DGP leading to the missingness. Though the onus is on the researcher to do this, it is often a relatively high standard given the complexity to which social phenomena relate and the tendency for our datasets to be highly-dimensional. Furthermore, this also increases the number of parameters one must include in their statistical models - which runs the risk of increasing collinearity [@schrodt_2014_jopr].
+An improvement calculates the mean or median values of the column in cross-sectional settings or, in panel settings, to take the mean of that variable over time. These interpolation and extrapolation approaches are an improvement over `LWD` in that it uses information from complete cases to provide an estimate of what that missing value should be. In cross-sectional and panel data, these approaches still have some limitations as it makes strong assumptions about the comparability of that cell with the others.
 
-Like `LWD`, simple imputation techniques like mean-and-median-based imputation do not reduce the chances of biased regression estimates. These approaches, called interpolation and extrapolation, are common for panel data and cross-sectional time series data. If you have missing data for an observation in one panel, you can take the same observations' responses in a previous panel and a latter panel. You then take the mean or the median of that particular observation for that variable. In cross-sectional data, mean-based imputation often means placing the mean value for the column in place of a missing value. Other approaches seek to reduce this `MAR`-based bias through conditioning on other variables.
+With Hot Deck imputation, you replace a missing value for a column with that of an observation that has similar observed characteristics [@andridge_review_2010]. As you are deciding the imputed values based on observed data, theoretically it is desirable for situations where you have data that are `MAR`. Like matching methods, there is significant debate about the best way to determine whether another observation is similar enough to the one with the missing data [@andridge_review_2010]. Also in datasets where missing data are common, it becomes tricky to find complete observations that are similar to those that are incomplete.
 
-Hot Deck approaches to imputing missingness are regression-based in that they define the dependent variable as the one the researcher is attempting to impute and use variables thought to predict the cause of missingness in `MAR` contexts [@schunk_2008_atsa]. In this approach, you often use a few variables to condition on. In many cases, the precise mechanism generating missingness is often tricky to triangulate. As a result, if you fail to provide the correct model specification when the data are `MAR`, you often end up with biased regression estimates. Furthermore, hot-deck imputation is limited in that it performs this regression once. This means that if the model providing the predicted values is incorrect, so will those missing values.
+`MI` seeks to solve these issues by imagining the task of imputation in a prediction framework. This approach often uses some implementation of Multi-Chain Monte Carlo (`MCMC`) to leverage the other variables in the dataset to generate a joint posterior distribution of all possible missing values for that particular observation. A popular implementation of `MI` in political science is the `AMELIA II` software [@honaker_et-al_2011_jss]. This useful tool provides a computationally fast and simple process for imputation by taking advantage of bootstrapping with the EMB algorithm. Compared to the other approaches to missing data, `AMELIA II` performs quite well [@honaker_et-al_2011_jss]. `MI`, however, often requires a set of distributional assumptions for the joint distribution - often the multivariate normal [@honaker_et-al_2011_jss]. Another challenge with this tool is that it runs up with the curse of dimensionality -- if you are asking for more information by using more variables than you have observations, many non-regularized models will provide inaccurate estimates.
 
-`MI` seeks to solve these issues by using the entire dataset for imputing missing values and doing it multiple times[@rubin_1996_jasa]. This approach uses the other variables in the dataset to generate a joint posterior distribution of all possible missing values for that particular observation. Many assume that most social science data sets are sufficiently large enough to condition on the mechanism generating `MAR` [@schunk_2008_atsa]. Unlike the other approaches, `MI` also generates uncertainty around the imputed values - via its construction of the joint posterior distribution with multiple iterations [@rubin_1996_jasa] - which enables the researcher to be more transparent about the validity of those imputed values and to include that uncertainty in the researcher's subsequent statistical analyses [@king_et-al_2001_apsr; @von-hippel_2015_semmj]. A prevalent implementation of `MI` in political science is the `AMELIA II` software [@amelia; @honaker_et-al_2011_jss; @lall_2016_pa]. This useful tool provides a computationally fast and simple process for imputation by taking advantage of bootstrapping with the EMB algorithm. Compared to the other approaches to missing data, `AMELIA II` performs quite well [@honaker_et-al_2011_jss; @kropko_et-al_2014_pa]. `MI`, however, often requires a set of distributional assumptions for the joint distribution - often the multivariate normal [@honaker_et-al_2011_jss]. Another challenge with this tool is that it runs up with the curse of dimensionality -- if you are asking for more information by using more variables than you have observations, many non-regularized models will provide inaccurate estimates.
-
-There is a variant to `MI` that seeks more computational efficiency and loosens some requirements. This variant is called Multiple Imputation through Chained Equations (`MICE`). `MICE` performs quite well for large imputation tasks. `MI` struggles to impute values when there is missingness in the other variables of the dataset as it estimates imputed variables based on the joint distribution as opposed to focusing each imputation by optimizing predictions for each variable [@kropko_et-al_2014_pa]. `MICE` tries to get around this limitation in a few steps, as described by @azur_et-al_2011_ijmpr. @fig-process provides a visual representation of the procedure for a form of `MICE` used in this manuscript. I include more details about random forest models in the following subsection.
+Multiple Imputation through Chained Equations (`MICE`) is a variant of `MI` that seeks more computational efficiency and loosens some requirements. `MI` struggles to impute values when there is missingness in the other variables of the dataset as it estimates imputed variables based on the joint distribution as opposed to focusing each imputation by optimizing predictions for each variable [@kropko_et-al_2014_pa]. `MICE` tries to get around this limitation in a few steps, as described by @azur_et-al_2011_ijmpr. @fig-process provides a visual representation of the procedure for a form of `MICE` used in this manuscript. I include more details about `RF` in the following subsection.
 
 ```{mermaid}
 %%| label: fig-process
@@ -122,44 +125,30 @@ There is a variant to `MI` that seeks more computational efficiency and loosens 
 %%| fig-width: 5
 %%{init: {'theme':'base', 'themeVariables':{'primaryColor':'#ffffff', 'primaryBorderColor':'#000000'}}}%%
 graph TD;
-A[Missing Data] --> B[Simple Imputation]
+A[Missing Data] --> B[Simple interpolation for each variable]
 B --> C[Select Variable and remove imputed values]
 C --> D[Random forest model to impute predicted values]
-D --> |Repeat for each variable| C
+D --> |Repeat for each variable, recommended to be about 5-10 times| C
 ```
 
-First, `MICE` performs a simple imputation, or interpolation, for every missing value in the entire dataset. These are the placeholder values. The second step in the general `MICE` paradigm involves identifying one variable to impute. Once complete, it then removes those placeholder values. The third step then involves regressing the observed values of the variable on the other variables in the model and replacing the predicted values generated from the regression model for the missing values. The fourth step is to repeat steps two and three for each variable in the data set with missing values - this constitutes a single iteration. As a fifth step, you perform between five and ten iterations.[^4]
-
-[^4]: Though, the exact number of recommended iterations used in `MICE` are still up for debate [see @buuren_goothuis-oudshoorn_2011_jss; @azur_et-al_2011_ijmpr]. The recommendation is that you elect to go with more iterations if not constrained by computational limitations.
-
-The advantage of this chained equation procedure is to estimate each variable as an outcome with its own regression model that is most appropriate for it. This means that the imputation task optimizes on each variable containing `MAR` data as opposed to optimizing the task for the whole dataset. Though `MI` as implemented in `AMELIA` is regression based, the regression models that one may use in `MICE` are as numerous as those a researcher may choose from when engaged in statistical analysis. This means that the assumptions and the performance of the model one uses for the imputation are the same as in standard statistical analyses. Though it decreases some of the requirements for modeling the `MAR` process, it is not entirely atheoretical. We can, however, reduce the dependence that the imputed data have on a researcher's ability to theorize about the `MAR` process by selecting models that are accustomed to dealing with a large number of parameters without increasing inefficiency.
-
-One valuable model for allowing one to include a large number of parameters without losses to efficiency, is a form of ensemble machine learning model called Random Forests. As the following discussion highlights, random forest models are optimal for engaging in predictive tasks [see @montgomery_olivella_2018_ajps], which appears appropriate for the task of predicting missing values. These models have the additional benefit of not requiring a multivariate normal distribution, not requiring one to specify a potentially incorrect model of which variables are included in the `MAR` process, nor is it in the form of a `GLM`. That is, these models reduce some of the dependence of an imputation task on the researcher's beliefs about the source of the missingness. As researchers apply these random forest models within the `MICE` framework, they also benefit from the advantages that `MI` provide over the hot deck framework. Furthermore, machine learning models like ensemble procedures apply regularization to deal with highly dimensional datasets. These three features suggest that this procedure offers much more flexibility to the researcher.
-
-| Type | Cause                                                                                                                                               | Problem                                                                                     |
-|-----------------|------------------------------|-------------------------------|
-| MCAR | Missing data patterns are stochastic                                                                                                                | Does not cause bias in estimates                                                            |
-| MAR  | Missing data patterns are not stochastic; however, once accounting for observed causes of missingness, any remaining missing data are as-if random. | Generates a type of omitted variable bias without accounting for it.                        |
-| MNAR | Missing data patterns are not stochastic; caused by unobserved sources.                                                                             | Generates a type of omitted variable bias; hard to correct for as the source is unobserved. |
-
-: Types of missing data processes, problems, and solutions {#tbl-summary-missing-processes}
-
-| Procedure | Assumptions                                                                                                                                                                                                                                                                                                                                 | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Fixes                                       |
-|--------------------|----------------------|-----------------------------------|--------|
-| LWD       | Sources of missingness are random.                                                                                                                                                                                                                                                                                                          | Removes rows that have a missing value for *any* variable in the statistical model                                                                                                                                                                                                                                                                                                                                                                                                                                                             | MCAR                                        |
-| Simple    | Sources of missingness may be explained by some type of autocorrelation (spatial, temporal, non-independence of observations).                                                                                                                                                                                                              | Takes the average or median value of observations that occur either before (if temporal data), proximate to (if spatial data), or similar to (if in the same sample), and fills that value into all rows with missingness for that variable.                                                                                                                                                                                                                                                                                                   | Data with autocorrelation or are not i.i.d. |
-| Hotdeck   | Regression-based. So assumptions made are dependent on the particular regression you choose for this procedure.                                                                                                                                                                                                                             | Fits a regression model (specified by the researcher) where the researcher regresses the variable with missing values on other columns in the dataset. Fills empty rows with their predicted values from the regression model. Assumes that the regression model is properly specified.                                                                                                                                                                                                                                                        | MAR                                         |
-| MI        | Assumes a normally distributed joint posterior distribution. Assumes that a GLM is appropriate for describing the non-stochastic sources of missingness.                                                                                                                                                                                    | Fits a Bayesian Linear Regression. Iteratively regresses each variable containing missing values onto all other variables in the dataset. Completes this process multiple times to account for uncertainty in the particular construction of the posterior distribution.                                                                                                                                                                                                                                                                       | MAR                                         |
-| RFMICE    | MICE, in general, is constrained by the assumptions of the particular estimator one chooses. RFMICE, however, is designed to loosen a number of assumptions. Still in the Frequentist framework so it does not produce posterior distributions to reflect uncertainty. Uncertainty is reflected by variation within and between iterations. | First performs simple imputation on each variable that has missingness. Then fits a random forest model where it attempts to predict each variable containing missingness using all other variables present in the dataset. Within each iteration, Random Forest models perform their own iterative procedures to maximize predictive capacity using cross-validation. It performs this for each variable and produces some user specified number of datasets which are the result of those maximally predicted values for each missing value. | MAR                                         |
-
-: Common solutions for missing data {#tbl-summary-missing-solutions}
-
+The advantage of this chained equation procedure is to estimate each variable as an outcome with its own regression model that is most appropriate for it. This means that the imputation task optimizes on each variable containing `MAR` data as opposed to optimizing the task for the whole dataset. As `MICE` is regression-based, options for the underlying algorithm to estimate those imputed values are as numerous as our choices for regular statistical analysis. The focus of this manuscript is to examine an extremely flexible regression technique called `RF`.
 <!-- 
     END OF LIT REVIEW
 -->
 
 # The utility of random forest models for imputing political science data
 
+`RF` are a special type of ensemble supervised machine learning models. For those who would like an in-depth introduction of random forests and supervised machine learning, I recommend @james_et-al_2013_springer. Here, I will provide a simple analogy that outlines the intuition behind what supervised machine learning is to then follow-up with a discussion about how we can apply this intuition to solve missing data problems.
+
+If we are looking to sort beans into a good or bad pile before we toss them into a pot, we often want to collect information about them. Features like color, size, and plumpness can all be good indicators of whether a bean will taste good or bad. Say we have over 5,000 beans, and we are a chef at a restaurant approaching the dinner hour, and we do not have time to sort all these beans. To save time, we look at these features like color, size, and plumpness and make two piles - good or bad for a subset of our 5,000 beans; say, in this instance, about 25%. We then get one of our employees to sort the rest of the beans for us. This employee may know less than us about what features matter more and how to identify a bean that will taste good or bad. Nevertheless, they can look at the two piles we have already made and try to pick up on patterns that make good and bad beans different from one another. With this information, the employee can "learn" these patterns so that even without the same knowledge as the chef, they can still make predictions about whether a bean will taste good or bad.
+
+While this is a very simplistic analogy of how the broader class of supervised machine learning models work, this describes the same task that `RF`, a special type of supervised machine learning, are optimized to perform. These `RF` are optimized through ensemble-based methods to do complete this task recursively and to optimize each iteration by learning from the other iterations. Once this model is trained to determine these patterns, if the model was trained well, it will provide an optimal prediction of what a fixed, but unobserved, observation should be based on the data provided after training.
+
+In a missing data scenario, we can think of the task as training the random forest model on our complete observations in the dataset. In the `MICE` framework, we will fit a random forest model to predict the the values that are originally coded as missing for each variable. We use observations with complete data to train these models so that the weights placed on each predictor variable lead to a model that provides predicted values close to the observed values. Once we have trained this random forest model, we will need to use interpolation on the predictor variables to give us a reasonable data point so that we can use the full information of our data to come up with a predicted value for the column that we are imputing. We do these steps for each variable in our dataset. However, once we have done a full loop through our dataset, we now have predicted values that are better than those interpolated values that we first had to plug-in for the predictor variables for a given imputation model. With `MICE` we do multiple loops through the dataset to reduce the bias that the interpolated starting values may have generated in our imputed value. Intuitively, the more times we impute the whole dataset, the more accurate our imputed values will become. However, with many simulation studies on different types of data and under different circumstances, the common recommendation is that you only need to produce between 5-10 versions of your imputed dataset before the bias generated from those interpolated initial values become relatively inconsequential [see @azur_et-al_2011_ijmpr for a discussion]. Though the exact number of recommended imputed datasets is up for debate and is heavily dependent on a user's computational resources.
+
+This is not the only option at our disposal, however. We can use a Bayesian implementation of a linear regression in the `MICE` framework as well. The processes to impute the data are mostly the same. However, linear regression and `RF` are designed for different tasks. Linear regression models are optimized to help us determine whether a predictor explains an outcome once we account for other variables. `RF`, however, are optimized to learn patterns from existing data, then to use new information to predict some outcome. Furthermore, linear regression has a number of practical limitations. Linear regression is designed to provide predicted values that can range from $-\infty$ to $\infty$. `RF`, on the other hand are extremely flexible in that they can produce predicted values for continuous, categorical, and binary outcomes. An additional practical advantage that I'll mention here is that `RF` are non-parametric models which provide a distinct degree of flexibility to estimate the underlying DGP of the missingness over Generalized Linear Models. With all these considerations together, we may expect that random forests implemented in the `MICE` framework (`RF-MICE`) are extremely flexible and useful tools to solve missing data problems.
+
+<!--
 Random forest models are concerned with calculating a fixed out-of-sample prediction under the supervised machine learning framework. They are popular among data scientists and researchers primarily interested in providing predictions instead of engaging in causal inference. In non-imputation applications of supervised machine learning models - a broader category of machine learning models that includes random forests, these models take partial, observed information about an outcome and estimate the relationship between the units with observed outcomes and several other observed features for those units. Then for the units without an observed outcome, we generalize that relationship to predict an outcome for them.
 
 To get an intuition of the fundamental goal of a supervised machine learning model, I will provide an analogy. If we are looking to sort beans into a good or bad pile before we toss them into a pot, we often want to collect information about them. Features like color, size, and plumpness can all be good indicators of whether a bean will taste good or bad. Say we have over 5,000 beans, and we are a chef at a restaurant approaching the dinner hour, and we do not have time to sort all these beans. To save time, we look at these features like color, size, and plumpness and make two piles - good or bad for a subset of our 5,000 beans; say, in this instance, about 25%. We then get one of our employees to sort the rest of the beans for us. This employee may know less than us about what features matter more and how to identify a bean that will taste good or bad. Nevertheless, they can look at the two piles we have already made and try to pick up on patterns that make good and bad beans different from one another. With this information, the employee can "learn" these patterns so that even without the same knowledge as the chef, they can still make predictions about whether a bean will taste good or bad.
@@ -187,7 +176,7 @@ In the next section, I illustrate the use of random forest models for political 
     END OF KEY SECTION FOR ARGUMENT
 -->
 
-# The performince of `RF-MICE` with simulations
+# The performance of `RF-MICE` with simulations
 
 ``` {r}
 #| label: simulation-r-setup-block
@@ -232,7 +221,7 @@ datasets <- 1000 # size of number of samples
 ```
 
 
-Using `R` [@r], I simulate a population where $N = 1000000$. The population has 5 variables (excluding a row index variable). The data generating process (DGP) of these variables are presented in @eq-sim-dgp. I then use the `infer` [@infer] package to take 1000 random samples from that population where the size of each sample is $n = 100$. 
+I simulate a population where $N = 1000000$. The population has 5 variables (excluding a row index variable). The data generating process (DGP) of these variables are presented in @eq-sim-dgp. I then take 1000 random samples from that population where the size of each sample is $n = 100$. 
 
 ``` {r}
 #| label: simulate samples
@@ -277,97 +266,11 @@ y_i = 0.6 \times x_i + 0.9 \times z_i + Normal(0,1)
 $$ {#eq-sim-dgp}
 
 
-For each sample, I use the `miceRanger` [@miceRanger] package to "ampute" the data to introduce missingness for 40% of the observations that follows a `MAR` pattern. The documentation of this package suggests that the amputation utilizes a logistic regression to generate a `MAR` pattern for each variable. This is advantageous to the `mice` [@mice] package's amputation function which forms the `MAR` pattern for each variable with a linear regression. As tools such as AMELIA assume a MVN for the imputation, I would not expect that there would be many differences in performance between different imputation procedures. Complicating the `MAR` process should help distinguish the limitations and benefits of the imputation procedures.
+For each sample, I use the `miceRanger` [@miceRanger] package to "ampute" the data to introduce missingness for 40% of the observations that follows a `MAR` pattern. The documentation of this package suggests that the amputation utilizes a logistic regression to generate a `MAR` pattern for each variable. This is advantageous to the `mice` [@mice] package's amputation function, which forms the `MAR` pattern for each variable with a linear regression, as it provides a more complex `MAR` pattern for the tools to solve. As tools such as AMELIA assume a MVN for the imputation, I would not expect that there would be many differences in performance between different imputation procedures. Complicating the `MAR` process should help distinguish the limitations and benefits of the imputation procedures; though, it should not cause dramatically more complex processes. For those interested, distributions of the original sample data and the amputed sample data are included in the Supplementary Materials.
 
-```{r}
-#| label: ampute the data
+With these amputed datasets, I then apply some of the procedures I have discussed to impute these values. Interpolation is a quite simple procedure where I can fill in missing values by using the mean value of that particular variable for the non-missing observations. I perform this interpolation with the `mice` package [@mice] and iterate over it to provide 10 datasets. I also use the `AMELIA II` package [@honaker_et-al_2011_jss] to perform standard `MI` and also store 10 datasets from the iterations. I use a standard Bayesian linear model in the `MICE` framework with the `mice` package [@mice]. As discussed before, the final procedure I use is a `RF` in the `MICE` framework. I perform the `RF-MICE` procedure using the `mice` package [@mice] and an alternative package `miceRanger` [@miceRanger]. I provide an example code block to do this in the supplementary information.
 
-if (params$reproduce == TRUE) {
-  # split these up into a list of data.frames for amputation
-  list_ampute_prep <- split(
-    df_samples
-    , f = df_samples$dataset
-  )
-  # Perform the amputation on each of the samples
-  list_amputed <- lapply(
-    list_ampute_prep
-      , function (x) {
-        df_amputed_temp <- amputeData(
-          data = x
-          , perc = 0.4
-          , cols = c("X","Z","Y")
-        )
-      }
-  )
-  # Combine the list of data.table objects into one data.table
-  df_amputed <- data.table::rbindlist(list_amputed)
-  # Store it in a file
-  save(
-    df_amputed
-    , file = "../data/sim_amputed.RData"
-  )
-} else {
-  load(
-    file = "../data/sim_amputed.RData"
-  )
-}
-
-```
-
-I use the `ggplot2` [@ggplot2] and `ggridges` [@ggridges] packages to display the distributions of the original sample data and the amputed data. As I have 1000 samples, I try to simplify the plots by presenting the density distributions of the X, Y, and Z variables for 10 samples. The density distributions for the original data are presented in @fig-sim-dist and the density distributions for the amputed data are presented in @fig-amputed-dist.
-
-``` {r}
-#| label: fig-sim-dist
-#| layout-nrow: 1
-#| fig-height: 8
-#| fig-cap: Distributions of complete sample data
-#| fig-subcap:
-#|  - X variable
-#|  - Z variable
-#|  - Y variable
-# Generate plots of samples
-plot_sample <- lapply(
-  c("X", "Z", "Y")
-  , function (x) {
-    sim_ridgeline(
-      data_frame = df_samples
-      , str_var = x
-    )
-  }
-)
-# Show each plot
-plot_sample[[1]]
-plot_sample[[2]]
-plot_sample[[3]]
-```
-
-```{r}
-#| label: fig-amputed-dist
-#| layout-nrow: 1
-#| fig-height: 8
-#| fig-cap: Distributions of amputed sample data
-#| fig-subcap:
-#|  - X variable
-#|  - Z variable
-#|  - Y variable
-plot_amputed <- lapply(
-  c("X", "Z", "Y")
-  , function (x) {
-    sim_ridgeline(
-      data_frame = df_amputed
-      , str_var=x
-    )
-  }
-)
-# Show each plot
-plot_amputed[[1]]
-plot_amputed[[2]]
-plot_amputed[[3]]
-```
-
-With these amputed datasets, I then apply some of the procedures I have discussed to impute these values. Interpolation is a quite simple procedure where I can fill in missing values by using the mean value of that particular variable for the non-missing observations. I perform this interpolation with the `mice` package [@mice] and iterate over it to provide 10 datasets. I also use the `AMELIA II` package [@honaker_et-al_2011_jss] to perform standard `MI` and also store 10 datasets from the iterations. I use a standard Bayesian linear model in the `MICE` framework with the `mice` package [@mice]. Bayesian linear models with uniform distributions or a weak prior distribution are similar to the familiar Ordinary Least Squares [@gelman_et-al_2021_cup]. As discussed before, the final procedure I use is a random forest in the `MICE` framework. I perform the `RF-MICE` procedure using the `mice` package [@mice] and an alternative package `miceRanger` [@miceRanger]. I provide an example code block to do this in the supplementary information.
-
-When producing the imputed datasets, I use the `tictoc` package to record the amount of time each procedure takes to complete the task on the 1000 samples as a measure of computational cost.[^5] As a number of factors may affect the absolute computational costs for these procedures (e.g., hardware, whether other applications or software are running, whether one uses parallelization, etcetera), I am primarily going to focus on the relative computational costs of each procedure.
+When producing the imputed datasets, I use the `tictoc` [@tictoc] package to record the amount of time each procedure takes to complete the task on the 1000 samples as a measure of computational cost.[^5] As a number of factors may affect the absolute computational costs for these procedures (e.g., hardware, whether other applications or software are running, whether one uses parallelization, etcetera), I am primarily going to focus on the relative computational costs of each procedure.
 
 [^5]: It is important to note that these benchmarks are based on a computer 16 GB of RAM, with a Apple Silicon M2 Pro Processor and a 10-core graphics card.
 
@@ -505,7 +408,7 @@ if (params$reproduce == TRUE) {
 }
 ```
 
-Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s = 1000$. I have a total of $s \times m$ datasets. For each s dataset, I took the difference the values for each m dataset from the values in the complete dataset and took the average of these differences across the 10 imputed, m, datasets for each sample to give me a mean score of the discrepancy for each s dataset. Using the `ggplot2` package [@ggplot2] I produce @fig-discrepancy, which represents these mean discrepancy scores for the three variables that were originally imputed. The text on each boxplot represents the median sample's average discrepancy for that particular procedure.
+Each imputation procedure produced $m = 10$ datasets per simulated dataset, $s = 1000$. I have a total of $s \times m$ datasets. For each s dataset, I took the difference the values for each m dataset from the values in the complete dataset and took the average of these differences across the 10 imputed, m, datasets for each sample to give me a mean score of the discrepancy for each s dataset. @fig-discrepancy represents these mean discrepancy scores for the three variables that were originally imputed. The text on each boxplot represents the median sample's average discrepancy for that particular procedure.
 
 ```{r}
 #| label: calculating-average-discrepancies
@@ -636,8 +539,7 @@ plot_discrepancy_z
 plot_discrepancy_y
 ```
 
-
-Overall, we see that the procedures do quite well in that the average difference between the actual data and the imputed data are quite small across the datasets. We see that `RF-MICE` when implemented with `miceRanger` [@miceRanger] consistently does a good job at coming closer to the correct value than the other procedures do. `RF-MICE` when implemented in the `mice` [@mice] package does a poorer job at this, however. In terms of speed to execute the imputation, interpolation with the `mice` package took an average of `r sprintf('%.3f', df_log[1,2]/1000)` seconds; Amelia took an average of `r sprintf('%.3f', df_log[2,2]/1000)` seconds; `Linear-MICE` took an average of `r sprintf('%.3f', df_log[3,2]/1000)` seconds; `RF-MICE`, as implemented by `mice` [@mice], took an average of `r sprintf('%.3f', df_log[4,2]/1000)` seconds; and `RF-MICE`, as implemented by `miceRanger` [@miceRanger], took an average of `r sprintf('%.3f', df_log[5,2]/1000)` seconds.
+Overall, the procedures do quite well in that the average difference between the actual data and the imputed data are quite small across the datasets. We see that `RF-MICE` when implemented with `miceRanger` [@miceRanger] consistently does a good job at coming closer to the correct value than the other procedures do. `RF-MICE` when implemented in the `mice` [@mice] package does a poorer job at this, however. In terms of speed to execute the imputation, interpolation with the `mice` package took an average of `r sprintf('%.3f', df_log[1,2]/1000)` seconds; Amelia took an average of `r sprintf('%.3f', df_log[2,2]/1000)` seconds; `Linear-MICE` took an average of `r sprintf('%.3f', df_log[3,2]/1000)` seconds; `RF-MICE`, as implemented by `mice` [@mice], took an average of `r sprintf('%.3f', df_log[4,2]/1000)` seconds; and `RF-MICE`, as implemented by `miceRanger` [@miceRanger], took an average of `r sprintf('%.3f', df_log[5,2]/1000)` seconds.
 
 Though it is not a novel claim, I argue that in situations where we have missingness due to a `MAR` pattern, our regression models suffer from bias due to the systematic process generating that missingness. What I have argued so far is that we should consider using `RF-MICE` as it is, relative to other `MI` tools, a flexible tool that may be able to model a number of `MAR` processes which would help with reducing bias in our regression models.
 
@@ -749,11 +651,11 @@ plot_model_discrepancy_z
 
 # Conclusions
 
-In theory, `RF-MICE` is a quite flexible tool that can operate in a number of circumstances to not only discover systematic processes leading to missingness in one's data, but to also use such information to recover the values. These expectations rely on the claim that Random Forest models are optimized for discovering patterns and to use that information to make out-of-sample predictions. With `RF-MICE` Random forests are coupled with `MICE` to produce significant improvements at retrieving the true values when a `MAR` process is present.
+In theory, `RF-MICE` is a quite flexible tool that can operate in a number of circumstances to not only discover systematic processes leading to missingness in one's data, but to also use such information to recover the values. These expectations rely on the claim that `RF` are optimized for discovering patterns and to use that information to make out-of-sample predictions. With `RF-MICE` Random forests are coupled with `MICE` to produce significant improvements at retrieving the true values when a `MAR` process is present.
 
 Using simulated data, I demonstrate two implementations of `RF-MICE` in `R` and compare it to implementations of more common procedures for dealing with `MAR` processes in political science. Overall, my simulated data and a number of measures of performance favor those theoretical expectations.
 
-When comparing the distribution of imputed samples to the true samples, as if the `MAR` process was not present, `RF-MICE` implementationed with `miceRanger` does quite well in recovering the true values that were missing. When examining the discrepancy between what the imputed value is and the true value, the two `RF-MICE` implementations provide quite small discrepancies on average.
+When comparing the distribution of imputed samples to the true samples, as if the `MAR` process was not present, `RF-MICE` implemented with `miceRanger` does quite well in recovering the true values that were missing. When examining the discrepancy between what the imputed value is and the true value, the two `RF-MICE` implementations provide quite small discrepancies on average.
 
 Measuring the performance of `RF-MICE` in terms of reducing bias in statistical estimation, I find that `RF-MICE`, when implemented with the `miceRanger` package [@miceRanger], stands out as a valuable tool for researchers to use to reduce bias generated with `MAR` processes.
 
@@ -765,3 +667,172 @@ It is important to remind the reader that all tools have their limitations and t
 <!--
     END OF DOCUMENT
 -->
+
+# References
+::: {#refs}
+:::
+
+# Supplementary Materials {.appendix}
+
+## Summaries of types of missing data and solutions {.appendix}
+
+| Type | Cause                                                                                                                                               | Problem                                                                                     |
+|-----------------|------------------------------|-------------------------------|
+| MCAR | Missing data patterns are stochastic                                                                                                                | Does not cause bias in estimates                                                            |
+| MAR  | Missing data patterns are not stochastic; however, once accounting for observed causes of missingness, any remaining missing data are as-if random. | Generates a type of omitted variable bias without accounting for it.                        |
+| MNAR | Missing data patterns are not stochastic; caused by unobserved sources.                                                                             | Generates a type of omitted variable bias; hard to correct for as the source is unobserved. |
+
+: Types of missing data processes, problems, and solutions {#tbl-summary-missing-processes}
+
+| Procedure | Assumptions                                                                                                                                                                                                                                                                                                                                 | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Fixes                                       |
+|--------------------|----------------------|-----------------------------------|--------|
+| LWD       | Sources of missingness are random.                                                                                                                                                                                                                                                                                                          | Removes rows that have a missing value for *any* variable in the statistical model                                                                                                                                                                                                                                                                                                                                                                                                                                                             | MCAR                                        |
+| Simple    | Sources of missingness may be explained by some type of autocorrelation (spatial, temporal, non-independence of observations).                                                                                                                                                                                                              | Takes the average or median value of observations that occur either before (if temporal data), proximate to (if spatial data), or similar to (if in the same sample), and fills that value into all rows with missingness for that variable.                                                                                                                                                                                                                                                                                                   | Data with autocorrelation or are not i.i.d. |
+| Hotdeck   | Regression-based. So assumptions made are dependent on the particular regression you choose for this procedure.                                                                                                                                                                                                                             | Fits a regression model (specified by the researcher) where the researcher regresses the variable with missing values on other columns in the dataset. Fills empty rows with their predicted values from the regression model. Assumes that the regression model is properly specified.                                                                                                                                                                                                                                                        | MAR                                         |
+| MI        | Assumes a normally distributed joint posterior distribution. Assumes that a GLM is appropriate for describing the non-stochastic sources of missingness.                                                                                                                                                                                    | Fits a Bayesian Linear Regression. Iteratively regresses each variable containing missing values onto all other variables in the dataset. Completes this process multiple times to account for uncertainty in the particular construction of the posterior distribution.                                                                                                                                                                                                                                                                       | MAR                                         |
+| RFMICE    | MICE, in general, is constrained by the assumptions of the particular estimator one chooses. RFMICE, however, is designed to loosen a number of assumptions. Still in the Frequentist framework so it does not produce posterior distributions to reflect uncertainty. Uncertainty is reflected by variation within and between iterations. | First performs simple imputation on each variable that has missingness. Then fits a random forest model where it attempts to predict each variable containing missingness using all other variables present in the dataset. Within each iteration, `RF` perform their own iterative procedures to maximize predictive capacity using cross-validation. It performs this for each variable and produces some user specified number of datasets which are the result of those maximally predicted values for each missing value. | MAR                                         |
+
+: Common solutions for missing data {#tbl-summary-missing-solutions}
+
+## Distributions of simulated data {.appendix}
+```{r}
+#| label: ampute the data
+
+if (params$reproduce == TRUE) {
+  # split these up into a list of data.frames for amputation
+  list_ampute_prep <- split(
+    df_samples
+    , f = df_samples$dataset
+  )
+  # Perform the amputation on each of the samples
+  list_amputed <- lapply(
+    list_ampute_prep
+      , function (x) {
+        df_amputed_temp <- amputeData(
+          data = x
+          , perc = 0.4
+          , cols = c("X","Z","Y")
+        )
+      }
+  )
+  # Combine the list of data.table objects into one data.table
+  df_amputed <- data.table::rbindlist(list_amputed)
+  # Store it in a file
+  save(
+    df_amputed
+    , file = "../data/sim_amputed.RData"
+  )
+} else {
+  load(
+    file = "../data/sim_amputed.RData"
+  )
+}
+
+```
+
+I use the `ggplot2` [@ggplot2] and `ggridges` [@ggridges] packages to display the distributions of the original sample data and the amputed data. As I have 1000 samples, I try to simplify the plots by presenting the density distributions of the X, Y, and Z variables for 10 samples. The density distributions for the original data are presented in @fig-sim-dist and the density distributions for the amputed data are presented in @fig-amputed-dist.
+
+``` {r}
+#| label: fig-sim-dist
+#| layout-nrow: 1
+#| fig-height: 8
+#| fig-cap: Distributions of complete sample data
+#| fig-subcap:
+#|  - X variable
+#|  - Z variable
+#|  - Y variable
+# Generate plots of samples
+plot_sample <- lapply(
+  c("X", "Z", "Y")
+  , function (x) {
+    sim_ridgeline(
+      data_frame = df_samples
+      , str_var = x
+    )
+  }
+)
+# Show each plot
+plot_sample[[1]]
+plot_sample[[2]]
+plot_sample[[3]]
+```
+
+```{r}
+#| label: fig-amputed-dist
+#| layout-nrow: 1
+#| fig-height: 8
+#| fig-cap: Distributions of amputed sample data
+#| fig-subcap:
+#|  - X variable
+#|  - Z variable
+#|  - Y variable
+plot_amputed <- lapply(
+  c("X", "Z", "Y")
+  , function (x) {
+    sim_ridgeline(
+      data_frame = df_amputed
+      , str_var=x
+    )
+  }
+)
+# Show each plot
+plot_amputed[[1]]
+plot_amputed[[2]]
+plot_amputed[[3]]
+```
+
+## Code {.appendix}
+
+```{.r}
+# Install libraries
+install.packages(
+  c(
+      "AMELIA"
+      , "mice"
+      , "miceRanger"
+  )
+)
+# Load libraries
+library(Amelia) # for MI
+library(mice) # for many MICE and interpolation procedures
+library(miceRanger) # for RF-Mice procedure
+# Dataset
+
+df
+
+# Listwise Deletion
+dfImputed <- df[complete.cases(df), ] # exclude rows that have missing values in any column
+
+# Interpolation
+dfImputed <- mice(
+  df # dataframe
+  , m = 10 # number of imputations
+  , method = "mean" # mean interpolation
+)
+
+# Amelia
+dfImputed <- amelia(
+  df # dataframe
+  , m = 10 # number of imputations
+)
+
+# Linear Bayesian MICE
+dfImputed <- mice(
+  df # dataframe
+  , m = 10 # number of imputations
+  , method = "linear" # Bayesian linear MICE
+)
+
+# RF-MICE with mice package
+dfImputed <- mice(
+  df # dataframe
+  , m = 10 # number of imputations
+  , method = "rf" # RF-MICE
+)
+
+# RF-MICE with miceRanger package
+dfImputed <- miceRanger(
+  df # dataframe
+  , m = 10 # number of imputations
+)
+```
